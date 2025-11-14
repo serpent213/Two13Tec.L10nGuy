@@ -1,0 +1,23 @@
+[formatter."php-cs-fixer"]
+command = "php-cs-fixer"
+options = [
+  "fix",
+  "--config=../../.php-cs-fixer.php",
+  "--allow-risky=yes",
+  "--"
+]
+includes = [
+  "Classes/**/*.php",
+  "Tests/**/*.php",
+]
+
+[formatter.prettier]
+command = "prettier"
+options = [
+  "--write",
+  "--",
+]
+includes = [
+  "Configuration/**/*.yaml",
+  "composer.json",
+]
