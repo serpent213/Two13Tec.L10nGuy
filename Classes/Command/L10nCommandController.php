@@ -86,6 +86,15 @@ class L10nCommandController extends CommandController
 
     /**
      * Run the localization scan and optionally write missing catalog entries.
+     *
+     * @param string|null $package Package key to scan (defaults to configuration or all packages)
+     * @param string|null $source Optional source restriction (e.g., Presentation.Cards)
+     * @param string|null $path Optional absolute/relative search root for references and catalogs
+     * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
+     * @param string|null $format Output format: table (default) or json
+     * @param bool|null $dryRun Do not write catalogs even when --update is set
+     * @param bool|null $update Write missing catalog entries to XLF files
+     * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      */
     public function scanCommand(
         ?string $package = null,
@@ -168,10 +177,12 @@ class L10nCommandController extends CommandController
      * Detect translation catalog entries that have no matching references and optionally delete them.
      *
      * @param string|null $package Package key to limit catalog inspection
-     * @param string|null $locales Optional comma separated locale list
-     * @param string|null $format Output format override
-     * @param bool|null $dryRun Whether to apply deletions
-     * @param bool|null $delete Toggle catalog mutations (Phase 5)
+     * @param string|null $source Optional source restriction (e.g., Presentation.Cards)
+     * @param string|null $path Optional absolute/relative root for catalog discovery
+     * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
+     * @param string|null $format Output format: table (default) or json
+     * @param bool|null $dryRun Report only; do not delete entries
+     * @param bool|null $delete Delete unused catalog entries
      */
     public function unusedCommand(
         ?string $package = null,
