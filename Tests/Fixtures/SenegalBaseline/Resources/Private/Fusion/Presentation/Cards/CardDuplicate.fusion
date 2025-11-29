@@ -1,0 +1,13 @@
+prototype(Two13Tec.Senegal:Presentation.Cards.CardDuplicate) < prototype(Neos.Fusion:Component) {
+    renderer = afx`
+        <p class="text-sm text-muted-foreground">
+            {I18n.translate(
+                'cards.authorPublishedBy',
+                'Published by {authorName}',
+                { authorName: 'Fallback' },
+                'Presentation.Cards:cards',
+                'Two13Tec.Senegal'
+            )}
+        </p>
+    `
+}

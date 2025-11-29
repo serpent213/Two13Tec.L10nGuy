@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Domain\Dto;
@@ -34,8 +35,7 @@ final class CatalogMutation
         $this->identifier = $identifier;
     }
 
-    public string $identifier
-    {
+    public string $identifier {
         get => $this->normalizedIdentifier;
         set => $this->normalizedIdentifier = trim((string)$value);
     }

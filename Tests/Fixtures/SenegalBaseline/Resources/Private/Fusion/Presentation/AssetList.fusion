@@ -1,0 +1,7 @@
+prototype(Two13Tec.Senegal:Presentation.AssetList) < prototype(Neos.Fusion:Component) {
+    renderer = afx`
+        <p class="text-muted">
+            {Translation.id('content.emptyAssetList').package('Neos.NodeTypes.AssetList').source('NodeTypes/AssetList')}
+        </p>
+    `
+}

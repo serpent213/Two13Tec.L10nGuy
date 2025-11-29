@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Command;
@@ -17,6 +18,7 @@ use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Two13Tec\L10nGuy\Service\FileDiscoveryService;
 use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
+use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
 
 /**
  * Command controller that will eventually host the l10n:scan CLI entry point.
@@ -30,6 +32,9 @@ class LocalizationScanCommandController extends CommandController
 
     #[Flow\Inject]
     protected FileDiscoveryService $fileDiscoveryService;
+
+    #[Flow\Inject]
+    protected ReferenceIndexBuilder $referenceIndexBuilder;
 
     /**
      * Initialize the scan workflow. The heavy lifting follows in later phases; for now we build the configuration.
@@ -74,5 +79,15 @@ class LocalizationScanCommandController extends CommandController
 
         // Phase 2 will hook file discovery and scanner wiring. Keeping a small interaction now documents intent.
         $this->fileDiscoveryService->seedFromConfiguration($configuration);
+
+        $index = $this->referenceIndexBuilder->build($configuration);
+        $this->outputLine(
+            'Reference index: %d unique (%d duplicates flagged across %d occurrences).',
+            [
+                $index->uniqueCount(),
+                $index->duplicateCount(),
+                $index->totalCount(),
+            ]
+        );
     }
 }
