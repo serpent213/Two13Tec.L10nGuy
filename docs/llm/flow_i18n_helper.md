@@ -1,164 +1,136 @@
-# Two13Tec L10nGuy CLI – PRD
+# Flow i18n Helper – Implementation Brief
 
-## Overview
-- Provide Flow CLI tooling that inventories translation usages across PHP, Fusion, AFX, and YAML, compares them to existing XLF files, and optionally updates translation catalogs.
-- Base implementation lives in Flow package `Two13Tec.L10nGuy` exposing CLI commands under `flow l10n:*`.
-- Reuse Flow’s existing i18n services (`Neos\Flow\I18n\Service`, `Neos\Flow\I18n\Translator`, `Neos\Flow\I18n\Xliff\Service\XliffFileProvider`) to avoid re-implementing parsing, locale resolution, or XLF writing.
+The `Two13Tec.L10nGuy` package ships a Flow CLI companion that detects missing or stale translations and keeps XLF catalogs in sync. This brief turns the early PRD into actionable engineering notes that are grounded in real data from the running site package `DistributionPackages/Two13Tec.Senegal`. The helper targets PHP 8.4 and should lean on promoted/readonly properties, typed class constants, property hooks, and first-class callable syntax wherever it keeps the code expressive.
 
-## Goals
-- Detect every translation reference (Eel helper calls, Fusion directives, PHP translator usage, YAML `i18n` sections, etc.).
-- Compare references to XLF sources per package/source file.
-- Offer `--update` to add missing `<trans-unit>` entries with sensible defaults (id, source, target identical initially).
-- Optionally list unused translations (present in XLF but not referenced anywhere).
-- Good UX: clear CLI summary table (counts per file/package), actionable exit codes, dry-run default.
+## Why we are building it
+- **Regression proofing** – stop regressions where new `I18n.translate()` calls never reach XLF catalogs.
+- **Automation** – Flow projects already expose the locale configuration via `Neos.Flow.i18n.*`; the helper merely orchestrates scanning, diffing, and (optionally) writing XLF files.
+- **Ground truth** – reusable fixtures mirror `Two13Tec.Senegal`, ensuring scanners understand real Fusion, YAML, and XLF constructs instead of contrived samples.
 
-## Non-goals
-- No automatic human translation; newly added units just mirror the fallback/source text.
-- No IDE plugin or live watch mode (batch CLI only).
-- No automatic deletion of unused translations (report only).
+## Real data baseline (Two13Tec.Senegal)
+`DistributionPackages/Two13Tec.Senegal` contains every scenario our helper must cover:
 
-## User Stories
-1. **Developer** runs `./flow l10n:scan` before committing to ensure every newly added `Translation.translate()` call has a matching XLF entry.
-2. **Localization manager** runs `./flow l10n:scan --update` after a feature lands to pre-populate new `<trans-unit>` nodes for translators.
-3. **Maintainer** runs `./flow l10n:unused --package Two13Tec.Senegal` to clean up XLF files before a release.
+| Path | Type | Reference | Notes |
+| --- | --- | --- | --- |
+| `Resources/Private/Fusion/Presentation/Cards/Card.fusion:82` | Fusion AFX | `{I18n.translate('cards.authorPublishedBy', 'Published by {authorName}', { authorName: props.authorName }, 'Presentation.Cards:cards', 'Two13Tec.Senegal')}` | Uses inline fallback and placeholders; catalog lives in `Resources/Private/Translations/*/Presentation/Cards.xlf`. |
+| `Resources/Private/Fusion/Presentation/YouTube.fusion:24` | Fusion | `I18n.translate('Two13Tec.Senegal:NodeTypes.Content.YouTube:error.no.videoid')` | Demonstrates fully qualified signature (package + source embedded in id). |
+| `Resources/Private/Translations/en/Presentation/Cards.xlf` | XLF | `<trans-unit id="cards.authorPublishedBy">` | English catalog with `product-name="Two13Tec.Senegal"`; the `de` locale mirrors structure. |
+| `NodeTypes/Content/ContactForm/ContactForm.yaml` | YAML | `label: i18n` under multiple properties | NodeType UI metadata referencing `NodeTypes/Content/ContactForm` catalogs. |
+| `Configuration/Settings.Flow.yaml` | YAML | Default locale `de`, fallback `en` | Used to seed CLI default locale list. |
+| `Resources/Private/Translations/de/NodeTypes/Document/Page.xlf` | XLF | 40+ `trans-unit` nodes | Ensures the helper handles non-default locales and nested directory layouts. |
 
-## CLI Commands
-| Command | Description | Key Options |
-|---------|-------------|-------------|
-| `flow l10n:scan` | Parse configured source files, emit report of missing translations, exit non-zero if any missing unless `--silent`. | `--package`, `--source`, `--path`, `--format=table\|json`, `--update`, `--dry-run` (default true), `--locales`. |
-| `flow l10n:unused` | Compare existing XLF files against the reference map built by `scan`; reports translations that no longer have references. | `--package`, `--source`, `--format`, `--locales`, `--delete`. |
-| `flow l10n:merge` (alias of `scan --update`) | Scan and persist missing translations in-place. | Same as `scan`. |
+Any fixtures or reference data we create in `Two13Tec.L10nGuy/Tests/Fixtures` should be trimmed copies of the files above, preserving IDs, nesting, and metadata (product-name, source paths, placeholders). Keep translation IDs identical so CLI output matches production.
 
-### UX Notes
-- Commands should describe which settings control include/exclude paths (reuse `Neos.Flow.i18n.scan.includePaths` and `excludePatterns`, defaulting to all package `Resources` + `Configuration`).
-- When `--update` is set, show per-file diff summary (e.g. `Added 3 trans-unit entries to DistributionPackages/Two13Tec.Senegal/Resources/.../Main.en.xlf`).
-- `--format=json` outputs full machine-readable data: list of references, missing units, duplicates, and file updates.
-- For tabular console output (default view), use `initphp/cli-table` with a soft color palette (e.g. muted border + header styles) to keep readability high while still providing visual separation; install via `composer require initphp/cli-table`.
-- Locale handling: by default commands operate on the project fallback locale (`Neos.Flow.i18n.defaultLocale`, or `en` if not set). Passing `--locales=de,fr` overrides this and processes each locale in the list sequentially (both for reporting and, with `--update`, for inserting placeholder entries into every specified catalog). Without `--locales`, non-default locales are ignored.
+## Command surface
+| Command | Behavior | Exit codes |
+| --- | --- | --- |
+| `./flow l10n:scan` | Builds a reference index from PHP, Fusion/AFX, and YAML files, compares it against the catalog index per locale, prints a table/json report, and fails with code `5` when missing translations exist (unless `--silent`). | `0` = clean, `5` = missing units, `7` = scanner failure. |
+| `./flow l10n:scan --update` (alias `l10n:merge`) | Performs the scan and writes missing `<trans-unit>` skeletons into the relevant XLF files. Uses Flow’s `XliffFileProvider` for locale-aware read/write and formats XML with 2-space indentation. | `0` when every update succeeds, non-zero if a catalog was locked or invalid. |
+| `./flow l10n:unused` | Loads the reference index (same code path as `scan`), then lists catalog entries not referenced anywhere. Supports `--delete` to remove entries in-place (defaults to dry-run). | `0` = clean, `6` = unused entries reported, `7` = runtime failure. |
 
-## Reference Detection
-### File Discovery
-- By default the tool scans only the package it lives in (resolved via Flow’s PackageManager) and walks include patterns declared under `Neos.Flow.i18n.helper.filePatterns.includes`. Defaults cover `Classes/**/*.php`, `Resources/**/*.fusion|afx`, and `Configuration/**/*.yaml`.
-- Exclusions use the same pattern structure (`filePatterns.excludes`) to skip things like tests or caches.
-- Patterns follow a `name => { pattern, enabled, priority }` convention, allowing project packages to add/disable entries without losing upstream defaults (Flow merges by name + priority).
-- Use Flow’s `Neos\Utility\Files::readDirectoryRecursively` to gather files matching enabled include patterns minus excludes; CLI flags can add ad-hoc include/exclude globs for one-off runs.
+Shared options:
+- `--package`, `--source`, `--path` limit scanning scope (default package = `Two13Tec.L10nGuy` to keep runtime tight).
+- `--locales=de,en` overrides locale list; otherwise we read `Neos.Flow.i18n.defaultLocale` (in Senegal: `de`) and append the fallback chain.
+- `--format=table|json` toggles CLI table vs JSON. Table rendering uses `initphp/cli-table` with muted borders. JSON is canonical for CI.
+- `--dry-run` defaults to `true` for every command that would touch disk; passing `--update` flips it to `false` unless explicitly set.
 
-### PHP
-- Parse PHP via nikic/php-parser (already a Flow dependency) to find:
-  - `Neos\Flow\I18n\Translator->translateById/translateByOriginalLabel`.
-  - Static helpers: `TranslationHelper::translate`, `$this->translationService->translate`.
-  - Strings tagged with `@translate` doc-block? (stretch goal, backlog).
-- Extract arguments (id, source, package, fallback) and normalize into `{package, source, id, fallback}`.
+## Implementation building blocks
 
-### Eel / Fusion / AFX
-- Stick to regex-based extraction because the only available parser (`Neos\Fusion\Core\Parser`) is explicitly `@internal` and therefore off-limits; heuristics must stay conservative and capture the entire helper expression for later normalization.
-- Recognize:
-  - `I18n.translate('Package:Source:Id', ...)`
-  - `Translation.translate(...)`
-  - Fluent usage: `Translation.id('foo').package('Bar').source('Baz').value('Fallback')`
-- For shorthand usage with extra parameters we must still split `Package:Source:Id` manually (mirrors `TranslationHelper::I18N_LABEL_ID_PATTERN`).
+### File discovery
+- Configure defaults under `Neos.Flow.i18n.helper.filePatterns` with `includes` covering `Classes/**/*.php`, `Resources/**/*.fusion`, `Resources/**/*.afx`, `Configuration/**/*.yaml`, and `Resources/Private/Translations/**/*.xlf`.
+- Patterns follow `{ name, pattern, enabled = true, priority = 100 }` to allow downstream overrides.
+- Use `Neos\Utility\Files::readDirectoryRecursively()` to gather files, then filter with `flow.utility.files::getMatchingFiles()` while honoring excludes.
 
-### YAML / JSON
-- Many Neos YAML configs use `label: 'i18n'` structures (especially NodeTypes). We must reproduce the exact logic Neos already uses:
-  - Mirror `Neos\ContentRepositoryRegistry\Configuration\NodeTypeEnrichmentService` – generate the same prefix via `generateNodeTypeLabelIdPrefix()` and append config-specific segments via `getLabelTranslationId()` / `getConfigurationTranslationId()`. This guarantees parity with the runtime-generated ids such as `Two13Tec.Senegal:NodeTypes.Document.Blog.Folder.properties.title`.
-  - If a YAML label already contains a shorthand string (e.g. `label: 'Two13Tec.Senegal:NodeTypes:custom'`), treat it as authoritative by parsing it with the service’s `splitIdentifier()` logic (package + optional source + id).
-- Context-specific variants (inspector editors, creation dialog fields, inline editor options, etc.) already map to dedicated suffixes in the enrichment service (`creationDialog.*`, `inspector.editorOptions.*`, …); reusing the same generator automatically reflects those contexts without custom heuristics.
-- Outside of NodeTypes, derive ids from the file-relative key path (`Vendor.Package:Config.<relative.path>`), but allow overrides via explicit shorthand strings.
-- Support `i18n:` objects (e.g. `label: i18n`) by reading explicit `id/source/package` overrides when authors provide them.
+### PHP scanner
+The collector uses `nikic/php-parser` in tolerant mode and embraces PHP 8.4 idioms:
 
-## XLF Comparison & Update
-- Use `Neos\Flow\I18n\Xliff\Service\XliffFileProvider` to resolve existing XLF files per `{package, source, locale}`.
-- Missing entry handling:
-  1. Determine locale (default fallback locale from settings or `en`).
-  2. Generate `<trans-unit id="foo" resname="foo">` with `<source>` set to fallback text (or id if no fallback) and `<target state="needs-translation">` equal to source.
-  3. Preserve formatting (indentation, newline) using Flow’s `XliffFileProvider` writer; avoid manual XML DOM to maintain compatibility.
-- `--update` writes changes; without it, show command to run.
-- Handle duplicates: report collisions when multiple files declare same id but different fallbacks.
+```php
+<?php
+declare(strict_types=1);
 
-## Unused Translation Detection
-- For each `{package, source, locale}` XLF file, list `trans-unit` IDs and subtract reference set.
-- Do not filter by `translate`, `state`, or other extended attributes—every `<trans-unit>` counts so reports stay exhaustive as per decision.
-- Output grouped by file with counts and optionally `--format=json`.
-- Optional `--delete` flag removes unused entries from their XLF files (after confirming the locale/file). Deletions happen per file/locale bundle with a summary of removed IDs; a `--dry-run` guard applies so users must opt-in to actual file writes (either via `--delete` together with `--dry-run=false` or by running `l10n:unused --delete --dry-run=false` explicitly).
+namespace Two13Tec\L10nGuy\Scanner;
 
-## Configuration
-- Settings path: `Neos.Flow.i18n.helper`.
-  - `filePatterns.includes` / `filePatterns.excludes`: keyed pattern definitions with `pattern`, `enabled`, `priority`. Example:
-    ```yaml
-    Neos:
-      Flow:
-        i18n:
-          helper:
-            filePatterns:
-              includes:
-                sourceFiles:
-                  pattern: 'Classes/**/*.php'
-                  enabled: true
-                  priority: 100
-                configFiles:
-                  pattern: 'Configuration/**/*.yaml'
-                  priority: 50
-              excludes:
-                tests:
-                  pattern: '**/*Test.php'
-                  priority: 100
-                caches:
-                  pattern: 'Data/Temporary/**'
-                  priority: 50
-    ```
-    `enabled` defaults to `true`; only set it when you need to disable a pattern. Projects can disable or override entries by redefining them (higher priority wins).
-  - `yaml.idStrategy` (values: `auto`, `explicit`, custom class implementing `TranslationIdBuilderInterface`).
-  - `defaultLocale` (fallback when Flow’s `Neos.Flow.i18n.defaultLocale` is missing).
-  - `locales` (array) – default list of locales each command should process if `--locales` isn’t provided.
-  - `sources` list to restrict scanning to certain XLF sources (e.g. `['Main', 'NodeTypes', 'Fusion']`).
-- Commands accept CLI overrides that merge with settings (`--path`, `--include`, `--exclude`, `--locales`).
+use Neos\Flow\I18n\Translator;
+use PhpParser\Node;
+use PhpParser\ParserFactory;
 
-## Implementation Notes
-- Package structure:
-  - `Classes/Command/L10nCommandController.php` registering the Flow CLI commands.
-  - `Classes/Scanner/*` components for each file type (PHP, Fusion, Yaml, GenericText).
-  - `Classes/Model/TranslationReference.php` describing normalized references.
-  - `Classes/Service/XliffUpdater.php` performing file modifications.
-  - `Classes/Report/Formatter/TableFormatter`, `JsonFormatter`.
-- No persistent cache layer; each command scans the filesystem on demand to keep behavior simple and deterministic.
-- Adhere strictly to public/stable APIs (`Neos\Flow` and `Neos\ContentRepositoryRegistry` services); whenever a required capability is only exposed via `@internal` classes, fall back to our own parsing (e.g. regex for Fusion/Afx) instead of touching internal code.
-- Tests:
-  - Unit tests for each scanner using fixtures (Fusion, PHP, YAML).
-  - Functional test running the command on `DistributionPackages/Two13Tec.Senegal` fixtures and asserting JSON output.
+final readonly class PhpReferenceCollector
+{
+    public function __construct(
+        private Translator $translator,
+        private ParserFactory $parserFactory = new ParserFactory(),
+    ) {}
 
-## Appendix: Data Structures & Algorithm Notes
+    public function collect(\SplFileInfo $file): iterable
+    {
+        $stmts = $this->parserFactory
+            ->createForNewestSupportedVersion()
+            ->parse($file->getContents());
+        // Walk AST, detect translateById, TranslationHelper::translate, etc.
+    }
+}
+```
 
-### Core In-Memory Structures
-- `TranslationReference` (immutable DTO):
-  - Fields: `packageKey`, `source`, `id`, `fallback`, `path` (file + line), `context` (php|fusion|yaml|…).
-  - Stored as associative array or small value object to ease JSON serialization.
-- `ReferenceIndex`:
-  - Map shape: `packageKey => source => id => TranslationReference`.
-  - Allows O(1) lookups for both missing and unused checks.
-- `CatalogIndex`:
-  - Built per locale by reading XLF via `XliffFileProvider`.
-  - Shape mirrors references but value is `TransUnitMetadata` with `id`, `source`, `target`, `filePath`.
-- `Diagnostics` list collecting warnings (duplicate ids, malformed helper usage) rendered at the end.
+Whenever we need normalized identifiers we can use property hooks (PHP 8.4) on dedicated DTOs:
 
-### Missing-Translation Scan
-1. Stream files (PHP/Fusion/AFX/YAML) and emit `TranslationReference` instances as soon as a hit is found.
-2. Insert into `ReferenceIndex`, tracking duplicates by storing an array of references per id (for later warnings).
-3. After scanning, iterate each reference and check existence in `CatalogIndex` for every locale selected (default is the fallback locale only; with `--locales` the loop runs for each entry). Complexity ~O(R) lookups with hash maps.
-4. `--update` path groups missing references by `{package, source, locale}` to minimize file writes (one pass per XLF file per locale).
+```php
+final class CatalogMutation
+{
+    private string $normalizedId = '';
 
-Performance considerations:
-- File IO dominates; use generators/streaming to avoid loading huge files wholly when not needed (but YAML parsing may require entire document).
-- Regex scanning for Fusion/AFX is linear in file size; compile patterns once per command.
-- Avoid repeated locale loading by caching `CatalogIndex` per `{package, source, locale}` in memory during the command run.
+    public string $id {
+        get => $this->normalizedId;
+        set => $this->normalizedId = trim($value);
+    }
+}
+```
 
-### Unused-Translation Detection
-1. Build `ReferenceIndex` (reuse from `l10n:scan` if the command is chained within same process; otherwise re-run scanners).
-2. Determine locales to process (default fallback locale or `--locales` list) and build `CatalogIndex` per locale.
-3. For each catalog entry, check if `ReferenceIndex[package][source][id]` exists:
-   - If missing, mark as unused and include metadata (locale, file, state) in the report (and enqueue removal when `--delete` is active and not in dry-run).
-4. Sorting: group output by package/source to keep UX readable.
+### Fusion / AFX scanner
+- Stick with regex heuristics because `Neos\Fusion\Core\Parser` is `@internal`.
+- Handle both `I18n.translate('cards.authorPublishedBy', ...)` and fluent usage like `Translation.id('foo').package('Two13Tec.Senegal').source('Presentation.Cards')`.
+- Emit references with `{packageKey, source, id, fallback, path, context = fusion}` and capture placeholder arguments so we can emit diagnostics when placeholders mismatch.
 
-Performance considerations:
-- Catalog parsing cost proportional to total trans-units. For large projects, stream XLF XML with `XMLReader` via Flow’s XLIFF service to avoid DOM blow-ups.
-- Keep unused detection O(C) by using hash lookups rather than searching reference arrays.
-- Since no persistent cache exists, encourage users to scope commands via `--package`/`--path` to limit IO when needed (defaults already limit to the hosting package, but overrides may widen the scope).
+### YAML scanner
+- Parse via Symfony YAML (bundled with Flow) and traverse keys with `i18n` values.
+- For NodeType definitions derive the translation source from the file path (e.g., `NodeTypes/Content/ContactForm/ContactForm.yaml` → `NodeTypes.Content.ContactForm`) and use the property name for the translation id to mirror Neos UI behavior.
+
+### Catalog index / writers
+- Lean on `Neos\Flow\I18n\Xliff\Service\XliffFileProvider` to hydrate `LocalizedXliffModel` instances.
+- Build a `ReferenceIndex` dictionary: `package => source => id => TranslationReference`.
+- Build a `CatalogIndex`: `locale => package => source => id => CatalogEntry`.
+- When writing, group missing entries by locale + package + source to limit file writes. All writes stay inside Flow’s resource folder to avoid collisions with `Data/Temporary`.
+- Respect `dry-run` at the highest level so CLI invocations cannot mutate files unexpectedly in CI.
+
+## Fixtures derived from Senegal
+
+Create `DistributionPackages/Two13Tec.L10nGuy/Tests/Fixtures/SenegalBaseline` with trimmed files:
+
+1. `Resources/Private/Fusion/Presentation/Cards/Card.fusion` – copy the block around line 70–95 to cover `cards.authorPublishedBy`.
+2. `Resources/Private/Fusion/Presentation/YouTube.fusion` – lines 16–28 include an error translation for missing video IDs.
+3. `NodeTypes/Content/ContactForm/ContactForm.yaml` – keep the header and at least two properties with `label: i18n`.
+4. `Configuration/Settings.Flow.yaml` – copy the `defaultLocale` block (`de` with fallback `en`).
+5. `Resources/Private/Translations/en/Presentation/Cards.xlf` – include the `<trans-unit>` nodes for `cards.authorPublishedBy` and `cards.moreButton`.
+6. `Resources/Private/Translations/de/Presentation/Cards.xlf` – same as above but with German source text to ensure locale switching works.
+
+Functional tests can then assert:
+- `l10n:scan` spots `cards.authorPublishedBy` when missing from the English catalog.
+- `l10n:scan --update --locales=de,en` writes both locales.
+- `l10n:unused` reports extra units like `cards.moreButton` when no reference exists.
+
+## Example workflows
+1. **Developer** adds `{I18n.translate('cards.authorPublishedBy', ...)}` to a new Fusion prototype. Running `./flow l10n:scan` prints a table showing `cards.authorPublishedBy` missing from `Presentation/Cards.xlf` for locales `de` and `en`. Exiting with code `5` fails CI.
+2. **Localization manager** runs `./flow l10n:scan --update --locales=de,en` after merging. Output lists files touched (e.g., `Added 1 trans-unit to DistributionPackages/Two13Tec.Senegal/Resources/Private/Translations/en/Presentation/Cards.xlf`). New `<trans-unit>` entries contain the fallback string as both `source` and `target`.
+3. **Maintainer** runs `./flow l10n:unused --package Two13Tec.Senegal --format=json` before a release. JSON output shows `cards.moreButton` is unused, referencing its locale + file path so the maintainer can delete or ignore it.
+
+## Diagnostics & reporting
+- Missing placeholders trigger warnings (e.g., translation uses `{authorName}` but the Fusion call omits it).
+- Duplicate translation ids in the reference index increment a `duplicates` counter surfaced in the CLI table (and JSON payload).
+- Provide actionable suggestions when catalogs cannot be parsed (e.g., `Check XML near line 11: mismatched closing tag`).
+
+## Appendix – Data structures
+- `TranslationReference` – `readonly class` with promoted constructor properties (`public function __construct(public string $packageKey, ...) {}`).
+- `ReferenceIndex` – `array<string, array<string, array<string, TranslationReference|array<int, TranslationReference>>>>`.
+- `CatalogEntry` – `readonly` DTO storing locale, file path, id, source, target, state.
+- `CatalogMutation` – described above; uses PHP 8.4 property hooks to normalize ids before writing.
+
+These structures, paired with fixtures that mirror `Two13Tec.Senegal`, ensure the Flow i18n helper remains grounded in authentic content while embracing modern PHP 8.4 conventions.

@@ -1,32 +1,36 @@
-# Package automation for Neos.MetaData
+# Package automation for Two13Tec.L10nGuy
 
 default:
-  @just --list
+	@just --list
 
 # Apply auto-formatters
 format:
-  treefmt --config treefmt.toml
+	treefmt --config-file treefmt.toml
 
 # Verify formatting and run lightweight linting
 lint:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  treefmt --config treefmt.toml --fail-on-change
-  for dir in Classes Tests; do
-    if [ -d "$dir" ]; then
-      while IFS= read -r -d '' file; do
-        php -l "$file" > /dev/null
-      done < <(find "$dir" -name '*.php' -print0)
-    fi
-  done
-  echo "Lint checks completed."
+	#!/usr/bin/env bash
+	set -euo pipefail
+	treefmt --config-file treefmt.toml --fail-on-change
+	PHP_FILES=$(rg --files -g '*.php' Classes Tests 2>/dev/null || true)
+	if [ -z "$PHP_FILES" ]; then
+	  echo "No PHP files detected for linting."
+	  exit 0
+	fi
+	printf '%s\n' "$PHP_FILES" | xargs -r -n1 php -l >/dev/null
+	if [ -f phpstan.neon ]; then
+	  composer exec phpstan analyse --configuration=phpstan.neon
+	fi
+	echo "Lint checks completed."
 
 # Execute package-specific tests (if defined)
 test:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ -d Tests ]; then
-    (cd ../.. && FLOW_CONTEXT=Testing ./bin/phpunit --configuration=Build/BuildEssentials/PhpUnit/UnitTests.xml -- DistributionPackages/Neos.MetaData/Tests) || exit 1
-  else
-    echo "No tests defined for Neos.MetaData."
-  fi
+	#!/usr/bin/env bash
+	set -euo pipefail
+	if [ -d Tests ]; then
+	  (cd ../.. && FLOW_CONTEXT=Testing ./bin/phpunit \
+	    --configuration=Build/BuildEssentials/PhpUnit/UnitTests.xml \
+	    -- DistributionPackages/Two13Tec.L10nGuy/Tests)
+	else
+	  echo "No tests defined for Two13Tec.L10nGuy."
+	fi
