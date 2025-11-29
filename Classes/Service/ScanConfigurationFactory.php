@@ -127,8 +127,9 @@ final class ScanConfigurationFactory
         }
 
         $locales = [];
-        if (!empty($this->flowI18nSettings['defaultLocale'])) {
-            $locales[] = (string)$this->flowI18nSettings['defaultLocale'];
+        $defaultLocale = $this->flowI18nSettings['defaultLocale'] ?? null;
+        if ($defaultLocale !== null && $defaultLocale !== '') {
+            $locales[] = (string)$defaultLocale;
         }
 
         $fallbackOrder = $this->flowI18nSettings['fallbackRule']['order'] ?? [];

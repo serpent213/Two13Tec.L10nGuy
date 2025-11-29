@@ -20,6 +20,7 @@ use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
+use Two13Tec\L10nGuy\Utility\PathResolver;
 
 /**
  * Applies catalog mutations and writes deterministic XLF files.
@@ -234,7 +235,8 @@ final class CatalogWriter
 
     private function shouldWriteTarget(array $metadata, string $locale): bool
     {
-        if (!empty($metadata['targetLanguage'])) {
+        $targetLanguage = $metadata['targetLanguage'] ?? null;
+        if ($targetLanguage !== null && $targetLanguage !== '') {
             return true;
         }
 
@@ -261,8 +263,9 @@ final class CatalogWriter
             'source-language' => $metadata['sourceLanguage'],
             'datatype' => $metadata['datatype'] ?? 'plaintext',
         ];
-        if (!empty($metadata['targetLanguage'])) {
-            $fileAttributes['target-language'] = $metadata['targetLanguage'];
+        $targetLanguage = $metadata['targetLanguage'] ?? null;
+        if ($targetLanguage !== null && $targetLanguage !== '') {
+            $fileAttributes['target-language'] = $targetLanguage;
         }
 
         $lines = [];
@@ -331,7 +334,7 @@ final class CatalogWriter
 
         if ($configuration->paths !== []) {
             $path = $configuration->paths[0];
-            $absoluteRoot = $this->isAbsolutePath($path) ? $path : Files::concatenatePaths([$basePath, $path]);
+            $absoluteRoot = PathResolver::isAbsolute($path) ? $path : Files::concatenatePaths([$basePath, $path]);
             return rtrim($absoluteRoot, '/') . '/' . $relative;
         }
 
@@ -348,10 +351,5 @@ final class CatalogWriter
         }
 
         return null;
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        return str_starts_with($path, '/') || (strlen($path) > 1 && ctype_alpha($path[0]) && $path[1] === ':');
     }
 }

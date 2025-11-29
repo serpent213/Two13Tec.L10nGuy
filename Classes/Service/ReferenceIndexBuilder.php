@@ -22,6 +22,7 @@ use Two13Tec\L10nGuy\Reference\Collector\FusionReferenceCollector;
 use Two13Tec\L10nGuy\Reference\Collector\PhpReferenceCollector;
 use Two13Tec\L10nGuy\Reference\Collector\ReferenceCollectorInterface;
 use Two13Tec\L10nGuy\Reference\Collector\YamlReferenceCollector;
+use Two13Tec\L10nGuy\Utility\PathResolver;
 
 /**
  * Coordinates file discovery and reference collectors.
@@ -51,7 +52,7 @@ final class ReferenceIndexBuilder
     public function build(ScanConfiguration $configuration, string $basePath = FLOW_PATH_ROOT): ReferenceIndex
     {
         $index = new ReferenceIndex();
-        $roots = $this->resolveRoots($configuration, $basePath);
+        $roots = PathResolver::resolveRoots($configuration, $basePath);
         $visited = [];
 
         foreach ($roots as $root) {
@@ -66,41 +67,6 @@ final class ReferenceIndexBuilder
         }
 
         return $index;
-    }
-
-    /**
-     * @return list<array{base: string, paths: list<string>}>
-     */
-    private function resolveRoots(ScanConfiguration $configuration, string $basePath): array
-    {
-        if ($configuration->paths !== []) {
-            $roots = [];
-            foreach ($configuration->paths as $path) {
-                if ($this->isAbsolutePath($path)) {
-                    $roots[] = ['base' => $path, 'paths' => ['']];
-                } else {
-                    $roots[] = ['base' => $basePath, 'paths' => [$path]];
-                }
-            }
-            return $roots;
-        }
-
-        if ($configuration->packageKey !== null) {
-            return [[
-                'base' => $basePath,
-                'paths' => ['DistributionPackages/' . $configuration->packageKey],
-            ]];
-        }
-
-        return [[
-            'base' => $basePath,
-            'paths' => ['DistributionPackages'],
-        ]];
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        return str_starts_with($path, '/') || (strlen($path) > 1 && ctype_alpha($path[0]) && $path[1] === ':');
     }
 
     private function collectReferencesForFile(SplFileInfo $fileInfo, ReferenceIndex $index): void

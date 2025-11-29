@@ -17,6 +17,7 @@ namespace Two13Tec\L10nGuy\Service;
 use Neos\Flow\Annotations as Flow;
 use Neos\Utility\Files;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
+use Two13Tec\L10nGuy\Utility\PathResolver;
 
 /**
  * Centralized file discovery that honours the helper specific include/exclude patterns.
@@ -39,18 +40,21 @@ final class FileDiscoveryService
     }
 
     /**
-     * Placeholder hook for Phase 1 to document how CLI configuration will flow into discovery.
+     * Validate configured discovery roots ahead of iteration.
      */
-    public function seedFromConfiguration(ScanConfiguration $configuration): void
+    public function seedFromConfiguration(ScanConfiguration $configuration, string $basePath = FLOW_PATH_ROOT): void
     {
-        // Future phases will use this to lazily resolve package roots.
-        if ($configuration->paths === [] && isset($this->filePatternSettings['includes'])) {
-            return;
-        }
-
-        foreach ($configuration->paths as $configuredPath) {
-            if (!is_dir($configuredPath)) {
-                throw new \RuntimeException(sprintf('Configured path "%s" does not exist.', $configuredPath), 1731157731);
+        foreach (PathResolver::resolveRoots($configuration, $basePath) as $root) {
+            foreach ($root['paths'] as $relativePath) {
+                $searchRoot = $relativePath === ''
+                    ? $root['base']
+                    : Files::concatenatePaths([$root['base'], $relativePath]);
+                if (!is_dir($searchRoot)) {
+                    throw new \RuntimeException(
+                        sprintf('Configured search root "%s" does not exist.', $searchRoot),
+                        1731880001
+                    );
+                }
             }
         }
     }

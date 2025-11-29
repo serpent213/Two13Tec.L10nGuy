@@ -58,7 +58,6 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
     {
         $token = 'I18n.translate';
         $offset = 0;
-        $length = strlen($contents);
 
         while (($position = strpos($contents, $token, $offset)) !== false) {
             $call = $this->extractFunctionCall($contents, $position + strlen($token));

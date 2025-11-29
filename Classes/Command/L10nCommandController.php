@@ -42,6 +42,12 @@ use Two13Tec\L10nGuy\Service\ScanResultBuilder;
  */
 class L10nCommandController extends CommandController
 {
+    private const EXIT_KEY_SUCCESS = 'success';
+    private const EXIT_KEY_MISSING = 'missing';
+    private const EXIT_KEY_FAILURE = 'failure';
+    private const EXIT_KEY_DIRTY = 'dirty';
+    private const EXIT_KEY_UNUSED = 'unused';
+
     #[Flow\Inject]
     protected ScanConfigurationFactory $scanConfigurationFactory;
 
@@ -139,7 +145,7 @@ class L10nCommandController extends CommandController
         }
 
         $exitCode = $this->resolveScanExitCode($scanResult);
-        if ($exitCode !== ($this->exitCodes['success'] ?? 0)) {
+        if ($exitCode !== $this->exitCode(self::EXIT_KEY_SUCCESS, 0)) {
             $this->quit($exitCode);
         }
     }
@@ -221,7 +227,7 @@ class L10nCommandController extends CommandController
         }
 
         $exitCode = $this->resolveUnusedExitCode($catalogIndex, $unusedEntries, $configuration);
-        if ($exitCode !== ($this->exitCodes['success'] ?? 0)) {
+        if ($exitCode !== $this->exitCode(self::EXIT_KEY_SUCCESS, 0)) {
             $this->quit($exitCode);
         }
     }
@@ -307,7 +313,7 @@ class L10nCommandController extends CommandController
                 $this->outputLine('Catalog requires formatting: %s', [$this->relativePath($file)]);
             }
 
-            $this->quit($this->exitCodes['dirty'] ?? ($this->exitCodes['failure'] ?? 7));
+            $this->quit($this->exitCode(self::EXIT_KEY_DIRTY, $this->exitCode(self::EXIT_KEY_FAILURE, 7)));
         }
 
         if ($formatted === []) {
@@ -411,14 +417,14 @@ class L10nCommandController extends CommandController
     private function resolveScanExitCode(ScanResult $scanResult): int
     {
         if ($scanResult->catalogIndex->errors() !== []) {
-            return $this->exitCodes['failure'] ?? 7;
+            return $this->exitCode(self::EXIT_KEY_FAILURE, 7);
         }
 
         if ($scanResult->missingTranslations !== []) {
-            return $this->exitCodes['missing'] ?? 5;
+            return $this->exitCode(self::EXIT_KEY_MISSING, 5);
         }
 
-        return $this->exitCodes['success'] ?? 0;
+        return $this->exitCode(self::EXIT_KEY_SUCCESS, 0);
     }
 
     private function renderScanTable(ScanResult $scanResult): string
@@ -622,7 +628,7 @@ class L10nCommandController extends CommandController
         ScanConfiguration $configuration
     ): int {
         if ($catalogIndex->errors() !== []) {
-            return $this->exitCodes['failure'] ?? 7;
+            return $this->exitCode(self::EXIT_KEY_FAILURE, 7);
         }
 
         $hasUnused = $unusedEntries !== [];
@@ -631,10 +637,15 @@ class L10nCommandController extends CommandController
         }
 
         if ($hasUnused) {
-            return $this->exitCodes['unused'] ?? 6;
+            return $this->exitCode(self::EXIT_KEY_UNUSED, 6);
         }
 
-        return $this->exitCodes['success'] ?? 0;
+        return $this->exitCode(self::EXIT_KEY_SUCCESS, 0);
+    }
+
+    private function exitCode(string $key, int $fallback): int
+    {
+        return $this->exitCodes[$key] ?? $fallback;
     }
 
     private function relativePath(string $path): string
