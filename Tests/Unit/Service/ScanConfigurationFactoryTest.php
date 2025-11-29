@@ -86,4 +86,43 @@ final class ScanConfigurationFactoryTest extends TestCase
         ]);
         self::assertTrue($explicitDryRunConfiguration->dryRun);
     }
+
+    /**
+     * @test
+     */
+    public function defaultsAreAppliedWhenCliOmitsOptions(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultPackages: ['Two13Tec.Senegal'],
+            defaultPaths: ['DistributionPackages/Two13Tec.Senegal']
+        );
+
+        $configuration = $factory->createFromCliOptions([]);
+
+        self::assertSame('Two13Tec.Senegal', $configuration->packageKey);
+        self::assertSame(['DistributionPackages/Two13Tec.Senegal'], $configuration->paths);
+    }
+
+    /**
+     * @test
+     */
+    public function cliOverridesDefaults(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultPackages: ['Two13Tec.Senegal'],
+            defaultPaths: ['DistributionPackages/Two13Tec.Senegal']
+        );
+
+        $configuration = $factory->createFromCliOptions([
+            'package' => 'Acme.Demo',
+            'paths' => ['DistributionPackages/Acme.Demo'],
+        ]);
+
+        self::assertSame('Acme.Demo', $configuration->packageKey);
+        self::assertSame(['DistributionPackages/Acme.Demo'], $configuration->paths);
+    }
 }

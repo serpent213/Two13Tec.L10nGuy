@@ -71,12 +71,12 @@ final class FileDiscoveryService
 
         $matches = [];
         foreach ($searchPaths as $relativePath) {
-            $absolutePath = Files::concatenatePaths([$basePath, $relativePath]);
-            if (!is_dir($absolutePath)) {
+            $searchRoot = $this->resolveSearchRoot($basePath, $relativePath);
+            if ($searchRoot === null) {
                 continue;
             }
             $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($absolutePath, \FilesystemIterator::SKIP_DOTS)
+                new \RecursiveDirectoryIterator($searchRoot, \FilesystemIterator::SKIP_DOTS)
             );
 
             /** @var \SplFileInfo $fileInfo */
@@ -84,7 +84,7 @@ final class FileDiscoveryService
                 if (!$fileInfo->isFile()) {
                     continue;
                 }
-                $relativeFilePath = ltrim(str_replace($basePath, '', $fileInfo->getPathname()), '/');
+                $relativeFilePath = ltrim(str_replace($searchRoot, '', $fileInfo->getPathname()), '/');
                 $matchesInclude = $includes === [] || $this->matches($relativeFilePath, $includes);
                 if (!$matchesInclude) {
                     continue;
@@ -147,5 +147,18 @@ final class FileDiscoveryService
         $escaped = str_replace(['\*\*', '\*', '\?'], ['.*', '[^/]*', '.'], $escaped);
 
         return '#^' . $escaped . '$#u';
+    }
+
+    private function resolveSearchRoot(string $basePath, string $relativePath): ?string
+    {
+        $absolutePath = $relativePath === ''
+            ? $basePath
+            : Files::concatenatePaths([$basePath, $relativePath]);
+
+        if (!is_dir($absolutePath)) {
+            return null;
+        }
+
+        return Files::getNormalizedPath($absolutePath);
     }
 }

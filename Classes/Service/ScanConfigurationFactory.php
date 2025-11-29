@@ -30,17 +30,39 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'defaultFormat', package: 'Two13Tec.L10nGuy')]
     protected string $defaultFormat = 'table';
 
+    #[Flow\InjectConfiguration(path: 'defaultPackages', package: 'Two13Tec.L10nGuy')]
+    protected array $defaultPackages = [];
+
+    #[Flow\InjectConfiguration(path: 'defaultPaths', package: 'Two13Tec.L10nGuy')]
+    protected array $defaultPaths = [];
+
     /**
      * @param array<string, mixed>|null $flowI18nSettings
      * @param string|null $defaultFormat
+     * @param list<string>|null $defaultPackages
+     * @param list<string>|null $defaultPaths
      */
-    public function __construct(?array $flowI18nSettings = null, ?string $defaultFormat = null)
-    {
+    public function __construct(
+        ?array $flowI18nSettings = null,
+        ?string $defaultFormat = null,
+        ?array $defaultPackages = null,
+        ?array $defaultPaths = null
+    ) {
         if ($flowI18nSettings !== null) {
             $this->flowI18nSettings = $flowI18nSettings;
         }
         if ($defaultFormat !== null) {
             $this->defaultFormat = $defaultFormat;
+        }
+        if ($defaultPackages !== null) {
+            $this->defaultPackages = $this->normalizeList($defaultPackages);
+        } else {
+            $this->defaultPackages = $this->normalizeList($this->defaultPackages);
+        }
+        if ($defaultPaths !== null) {
+            $this->defaultPaths = $this->normalizeList($defaultPaths);
+        } else {
+            $this->defaultPaths = $this->normalizeList($this->defaultPaths);
         }
     }
 
@@ -55,10 +77,18 @@ final class ScanConfigurationFactory
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
         $paths = $this->normalizeList($paths);
+        if ($paths === [] && $this->defaultPaths !== []) {
+            $paths = $this->defaultPaths;
+        }
+
+        $packageKey = $cliOptions['package'] ?? null;
+        if (($packageKey === null || $packageKey === '') && $this->defaultPackages !== []) {
+            $packageKey = $this->defaultPackages[0];
+        }
 
         return new ScanConfiguration(
             $this->resolveLocales($cliOptions['locales'] ?? null),
-            $cliOptions['package'] ?? null,
+            $packageKey !== '' ? $packageKey : null,
             $cliOptions['source'] ?? null,
             $paths,
             $this->resolveFormat($cliOptions['format'] ?? null),
