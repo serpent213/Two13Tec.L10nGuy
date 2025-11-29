@@ -1,0 +1,39 @@
+Neos:
+  Flow:
+    i18n:
+      helper:
+        defaultFormat: 'table'
+        exitCodes:
+          success: 0
+          missing: 5
+          unused: 6
+          failure: 7
+        filePatterns:
+          includes:
+            - name: php
+              pattern: 'Classes/**/*.php'
+              enabled: true
+              priority: 100
+            - name: fusion
+              pattern: 'Resources/**/*.fusion'
+              enabled: true
+              priority: 90
+            - name: afx
+              pattern: 'Resources/**/*.afx'
+              enabled: true
+              priority: 90
+            - name: yaml
+              pattern: 'Configuration/**/*.yaml'
+              enabled: true
+              priority: 80
+            - name: translations
+              pattern: 'Resources/Private/Translations/**/*.xlf'
+              enabled: true
+              priority: 70
+          excludes:
+            - name: node_modules
+              pattern: 'Resources/**/node_modules/**'
+              enabled: true
+            - name: build
+              pattern: 'Resources/**/Build/**'
+              enabled: true

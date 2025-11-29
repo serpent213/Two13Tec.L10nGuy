@@ -1,0 +1,15 @@
+prototype(Two13Tec.Senegal:Presentation.Cards.Card) < prototype(Neos.Fusion:Component) {
+    authorName = null
+
+    renderer = afx`
+        <p class="text-gray-500 italic" @if={props.authorName}>
+            {I18n.translate(
+                'cards.authorPublishedBy',
+                'Published by {authorName}',
+                { authorName: props.authorName },
+                'Presentation.Cards:cards',
+                'Two13Tec.Senegal'
+            )}
+        </p>
+    `
+}

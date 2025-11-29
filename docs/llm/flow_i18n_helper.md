@@ -19,7 +19,124 @@ The `Two13Tec.L10nGuy` package ships a Flow CLI companion that detects missing o
 | `Configuration/Settings.Flow.yaml` | YAML | Default locale `de`, fallback `en` | Used to seed CLI default locale list. |
 | `Resources/Private/Translations/de/NodeTypes/Document/Page.xlf` | XLF | 40+ `trans-unit` nodes | Ensures the helper handles non-default locales and nested directory layouts. |
 
+### Snapshot details from Senegal
+
+#### Cards component (`Resources/Private/Fusion/Presentation/Cards/Card.fusion#L78-L94`)
+
+```fusion
+<p class="text-gray-500 italic" @if={props.authorName}>
+    {I18n.translate(
+        'cards.authorPublishedBy',
+        'Published by {authorName}',
+        { authorName: props.authorName },
+        'Presentation.Cards:cards',
+        'Two13Tec.Senegal'
+    )}
+</p>
+```
+
+- Inline fallback matches the English copy in the catalog and proves that placeholders must be kept in sync.
+- The helper should link this reference to `Resources/Private/Translations/*/Presentation/Cards.xlf`.
+
+#### YouTube alert (`Resources/Private/Fusion/Presentation/YouTube.fusion#L12-L26`)
+
+```fusion
+<Two13Tec.Senegal:Presentation.Alert
+    @if={!props.videoId && props.inBackend}
+    class="aspect-video w-full rounded-lg shadow-lg"
+    content={I18n.translate('Two13Tec.Senegal:NodeTypes.Content.YouTube:error.no.videoid')}
+/>
+```
+
+- Shows the fully-qualified shorthand (`Package:Source:id`) that the Fusion scanner must recognize.
+- `NodeTypes.Content.YouTube` becomes the catalog source, so fixture data needs that layout as well.
+
+#### Locale defaults (`Configuration/Settings.Flow.yaml`)
+
+```yaml
+Neos:
+  Flow:
+    i18n:
+      defaultLocale: de
+      fallbackRule:
+        order: ["en"]
+```
+
+- The CLI should hydrate locales from these settings unless `--locales` overrides them.
+- Senegal runs with German as default and English as fallback, mirroring our intended production setup.
+
+#### Contact form metadata (`NodeTypes/Content/ContactForm/ContactForm.yaml`)
+
+```yaml
+"Two13Tec.Senegal:Content.ContactForm":
+  ui:
+    label: i18n
+    inspector:
+      groups:
+        email:
+          label: i18n
+  properties:
+    subject:
+      ui:
+        label: i18n
+```
+
+- Scanner must derive the source from the path (`NodeTypes.Content.ContactForm`) and keep one entry per inspector group/property.
+- These `i18n` markers are the same ones Neos renders in the backend inspector, so mismatches are visible to editors.
+
+#### Cards catalogs (`Resources/Private/Translations/*/Presentation/Cards.xlf`)
+
+```xml
+<trans-unit id="cards.authorPublishedBy" xml:space="preserve">
+  <source>Published by {authorName}</source>
+  <target state="translated">Veröffentlicht von {authorName}</target>
+</trans-unit>
+<trans-unit id="cards.moreButton" xml:space="preserve">
+  <source>More</source>
+  <target state="translated">Mehr</target>
+</trans-unit>
+```
+
+- English files only contain `<source>` nodes, while German adds `<target state="translated">…</target>`.
+- `cards.moreButton` is intentionally unused in Fusion, giving us a deterministic fixture for the `unused` command.
+
+#### Document catalogs (`Resources/Private/Translations/de/NodeTypes/Document/Page.xlf`)
+
+- Contains 40+ `trans-unit` entries, multiple inspector groups, and a `target-language` attribute.
+- Serves as the stress test for catalog parsing and ensures file writers keep indentation and ordering intact.
+
 Any fixtures or reference data we create in `Two13Tec.L10nGuy/Tests/Fixtures` should be trimmed copies of the files above, preserving IDs, nesting, and metadata (product-name, source paths, placeholders). Keep translation IDs identical so CLI output matches production.
+
+## Example: Cards translation lifecycle
+
+1. **Add or change a reference** – editing `Resources/Private/Fusion/Presentation/Cards/Card.fusion` introduces `{I18n.translate('cards.authorPublishedBy', …)}`. Until the catalog is updated, the helper reports the missing entry for every locale (German default + English fallback).
+
+```
+$ ./flow l10n:scan --package Two13Tec.Senegal --locales=de,en --format=table
++--------+-------------------+----------------------+-------------------------+-----------+
+| Locale | Package           | Source               | Id                      | Issue     |
+| de     | Two13Tec.Senegal  | Presentation.Cards   | cards.authorPublishedBy | missing   |
+| en     | Two13Tec.Senegal  | Presentation.Cards   | cards.authorPublishedBy | missing   |
++--------+-------------------+----------------------+-------------------------+-----------+
+```
+
+2. **Merge updates** – running `./flow l10n:scan --package Two13Tec.Senegal --locales=de,en --update` writes `<trans-unit>` skeletons into `Resources/Private/Translations/{de,en}/Presentation/Cards.xlf`, copying the fallback string into both `source` and `target` when no translation exists yet.
+3. **Cull unused strings** – `./flow l10n:unused --package Two13Tec.Senegal --format=json` flags entries such as `cards.moreButton`, because that ID only exists in the catalogs. Passing `--delete` removes them and writes the XLF file back with two-space indentation.
+
+```json
+{
+  "unused": [
+    {
+      "locale": "de",
+      "file": "DistributionPackages/Two13Tec.Senegal/Resources/Private/Translations/de/Presentation/Cards.xlf",
+      "id": "cards.moreButton",
+      "source": "Presentation.Cards"
+    }
+  ]
+}
+```
+
+4. **CI gate** – the helper exits with code `5` when it reports missing ids and `6` for unused entries. Senegal’s GitHub workflow will treat either code as a failing job, so we can wire the command into `just verify`.
 
 ## Command surface
 | Command | Behavior | Exit codes |

@@ -27,10 +27,19 @@ lint:
 test:
 	#!/usr/bin/env bash
 	set -euo pipefail
-	if [ -d Tests ]; then
+	if [ -d Tests/Unit ]; then
 	  (cd ../.. && FLOW_CONTEXT=Testing ./bin/phpunit \
 	    --configuration=Build/BuildEssentials/PhpUnit/UnitTests.xml \
-	    -- DistributionPackages/Two13Tec.L10nGuy/Tests)
+	    --testsuite=Unit \
+	    DistributionPackages/Two13Tec.L10nGuy/Tests/Unit)
 	else
-	  echo "No tests defined for Two13Tec.L10nGuy."
+	  echo "No unit tests defined for Two13Tec.L10nGuy."
+	fi
+	if [ -d Tests/Functional ]; then
+	  (cd ../.. && FLOW_CONTEXT=Testing ./bin/phpunit \
+	    --configuration=Build/BuildEssentials/PhpUnit/FunctionalTests.xml \
+	    --testsuite=Functional \
+	    DistributionPackages/Two13Tec.L10nGuy/Tests/Functional)
+	else
+	  echo "No functional tests defined for Two13Tec.L10nGuy."
 	fi

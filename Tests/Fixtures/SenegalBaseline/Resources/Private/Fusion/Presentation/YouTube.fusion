@@ -1,0 +1,12 @@
+prototype(Two13Tec.Senegal:Presentation.YouTube) < prototype(Neos.Fusion:Component) {
+    videoId = null
+    inBackend = false
+
+    renderer = afx`
+        <Two13Tec.Senegal:Presentation.Alert
+            @if={!props.videoId && props.inBackend}
+            class="aspect-video w-full rounded-lg shadow-lg"
+            content={I18n.translate('Two13Tec.Senegal:NodeTypes.Content.YouTube:error.no.videoid')}
+        />
+    `
+}
