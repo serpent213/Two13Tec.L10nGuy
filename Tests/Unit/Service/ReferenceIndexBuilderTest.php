@@ -53,7 +53,6 @@ final class ReferenceIndexBuilderTest extends TestCase
             sourceName: null,
             paths: [$this->fixtureRoot()],
             format: 'table',
-            dryRun: true,
             update: false
         );
 

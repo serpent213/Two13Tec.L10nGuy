@@ -82,8 +82,6 @@ final class ScanConfigurationFactory
     public function createFromCliOptions(array $cliOptions = []): ScanConfiguration
     {
         $update = (bool)($cliOptions['update'] ?? false);
-        $dryRun = $cliOptions['dryRun'] ?? null;
-        $dryRun = $dryRun === null ? !$update : (bool)$dryRun;
         $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
@@ -103,7 +101,6 @@ final class ScanConfigurationFactory
             $cliOptions['source'] ?? null,
             $paths,
             $this->resolveFormat($cliOptions['format'] ?? null),
-            $dryRun,
             $update,
             $ignorePlaceholderWarnings,
             [

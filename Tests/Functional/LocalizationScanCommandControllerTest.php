@@ -101,23 +101,6 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     }
 
     /**
-     * @test
-     */
-    public function scanCommandUpdateDryRunLeavesCatalogUntouched(): void
-    {
-        $cardsEn = self::getFixturePackagePath() . '/Resources/Private/Translations/en/Presentation/Cards.xlf';
-        $beforeChecksum = md5_file($cardsEn);
-
-        [$output] = $this->runScan([
-            'update' => true,
-            'dryRun' => true,
-        ]);
-
-        self::assertStringContainsString('dry-run: yes', $output);
-        self::assertSame($beforeChecksum, md5_file($cardsEn));
-    }
-
-    /**
      * @param array<string, mixed> $overrides
      * @return array{string, int}
      */
@@ -130,7 +113,6 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
             'path' => static::getFixturePackagePath(),
             'locales' => 'de,en',
             'format' => null,
-            'dryRun' => null,
             'update' => null,
             'ignorePlaceholder' => null,
         ], $overrides);
@@ -142,7 +124,6 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
                 $arguments['path'],
                 $arguments['locales'],
                 $arguments['format'],
-                $arguments['dryRun'],
                 $arguments['update'],
                 $arguments['ignorePlaceholder']
             );

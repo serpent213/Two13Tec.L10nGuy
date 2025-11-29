@@ -144,14 +144,13 @@ $ ./flow l10n:scan --package Two13Tec.Senegal --locales=de,en --format=table
 | --- | --- | --- |
 | `./flow l10n:scan` | Builds a reference index from PHP, Fusion/AFX, and YAML files, compares it against the catalog index per locale, prints a table/json report, and fails with code `5` when missing translations exist (unless `--silent`). | `0` = clean, `5` = missing units, `7` = scanner failure. |
 | `./flow l10n:scan --update` (alias `l10n:merge`) | Performs the scan and writes missing `<trans-unit>` skeletons into the relevant XLF files. Uses Flow’s `XliffFileProvider` for locale-aware read/write and formats XML with 2-space indentation. | `0` when every update succeeds, non-zero if a catalog was locked or invalid. |
-| `./flow l10n:unused` | Loads the reference index (same code path as `scan`), then lists catalog entries not referenced anywhere. Supports `--delete` to remove entries in-place (defaults to dry-run). | `0` = clean, `6` = unused entries reported, `7` = runtime failure. |
+| `./flow l10n:unused` | Loads the reference index (same code path as `scan`), then lists catalog entries not referenced anywhere. Supports `--delete` to remove entries in-place. | `0` = clean, `6` = unused entries reported, `7` = runtime failure. |
 | `./flow l10n:format [--check]` | Re-renders existing XLF files using the helper’s writer so indentation/metadata stay canonical. `--check` skips writing and exits non-zero when formatting drifts. | `0` = clean, `8` = formatting required, `7` = runtime failure. |
 
 Shared options:
 - `--package`, `--source`, `--path` limit scanning scope (default package = `Two13Tec.L10nGuy` to keep runtime tight).
 - `--locales=de,en` overrides locale list; otherwise we read `Neos.Flow.i18n.defaultLocale` (in Senegal: `de`) and append the fallback chain.
 - `--format=table|json` toggles CLI table vs JSON. Table rendering uses `initphp/cli-table` with muted borders. JSON is canonical for CI.
-- `--dry-run` defaults to `true` for every command that would touch disk; passing `--update` flips it to `false` unless explicitly set.
 - `--check` is specific to `l10n:format` and reports (exit code `8`) when any catalog would be rewritten without touching the files—perfect for CI guards.
 
 ## Implementation building blocks
@@ -219,7 +218,6 @@ final class CatalogMutation
 - Build a `ReferenceIndex` dictionary: `package => source => id => TranslationReference`.
 - Build a `CatalogIndex`: `locale => package => source => id => CatalogEntry`.
 - When writing, group missing entries by locale + package + source to limit file writes. All writes stay inside Flow’s resource folder to avoid collisions with `Data/Temporary`.
-- Respect `dry-run` at the highest level so CLI invocations cannot mutate files unexpectedly in CI.
 
 ## Fixtures derived from Senegal
 
@@ -243,12 +241,12 @@ Functional tests can then assert:
 3. **Maintainer** runs `./flow l10n:unused --package Two13Tec.Senegal --format=json` before a release. JSON output shows `cards.moreButton` is unused, referencing its locale + file path so the maintainer can delete or ignore it.
 
 ## CLI usage cheatsheet
-- `./flow l10n:scan [--package Two13Tec.Senegal] [--source Presentation.Cards] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--dry-run true] [--update]`
-  - `--update` groups missing ids per catalog and passes them to `CatalogWriter`, printing `Touched catalog: …` lines when files would change. Default `dry-run` flips to `false` once `--update` is supplied so commands mutate catalogs unless explicitly told otherwise.
+- `./flow l10n:scan [--package Two13Tec.Senegal] [--source Presentation.Cards] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--update]`
+  - `--update` groups missing ids per catalog and passes them to `CatalogWriter`, printing `Touched catalog: …` lines as files are written.
   - Exit codes: `0` success, `5` missing translations, `7` fatal failure (XML parse, file I/O, etc.).
-- `./flow l10n:unused [--package Two13Tec.Senegal] [--source NodeTypes.Content.ContactForm] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--dry-run true] [--delete]`
+- `./flow l10n:unused [--package Two13Tec.Senegal] [--source NodeTypes.Content.ContactForm] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--delete]`
   - Lists catalog entries that have no matching reference in PHP/Fusion/YAML. JSON payload mirrors the scan schema plus `unused`.
-  - `--delete` delegates to the shared writer to remove unused `<trans-unit>` nodes. When paired with `--dry-run` it only logs which catalogs would be touched.
+  - `--delete` delegates to the shared writer to remove unused `<trans-unit>` nodes and prints the catalogs it touches.
   - Exit codes: `0` clean sweep, `6` unused translations tracked (unless `--delete` actually removed them), `7` fatal failure.
 
 ## Diagnostics & reporting

@@ -76,7 +76,6 @@ final class CatalogIndexBuilderTest extends TestCase
             sourceName: null,
             paths: [$this->fixtureRoot()],
             format: 'table',
-            dryRun: true,
             update: false
         );
 

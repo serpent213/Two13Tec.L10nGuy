@@ -33,24 +33,9 @@ final readonly class ScanConfiguration
         public ?string $sourceName,
         public array $paths,
         public string $format,
-        public bool $dryRun,
         public bool $update,
         public bool $ignorePlaceholderWarnings = false,
         public array $meta = [],
     ) {
-    }
-
-    public function withDryRun(bool $dryRun): self
-    {
-        return new self(
-            $this->locales,
-            $this->packageKey,
-            $this->sourceName,
-            $this->paths,
-            $this->format,
-            $dryRun,
-            $this->update,
-            $this->meta,
-        );
     }
 }

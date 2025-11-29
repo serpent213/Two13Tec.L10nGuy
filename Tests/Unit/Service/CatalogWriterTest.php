@@ -69,7 +69,6 @@ final class CatalogWriterTest extends TestCase
             sourceName: 'Presentation.Cards',
             paths: [$this->sandboxPath],
             format: 'table',
-            dryRun: false,
             update: true
         );
 
@@ -118,7 +117,6 @@ final class CatalogWriterTest extends TestCase
             sourceName: 'Presentation.Cards',
             paths: [$this->sandboxPath],
             format: 'table',
-            dryRun: false,
             update: true
         );
 
@@ -150,39 +148,6 @@ final class CatalogWriterTest extends TestCase
             strpos($contents, '<trans-unit id="cards.plural[1]"'),
             strpos($contents, '<trans-unit id="cards.plural[0]"')
         );
-    }
-
-    /**
-     * @test
-     */
-    public function dryRunLeavesCatalogsUntouched(): void
-    {
-        $writer = new CatalogWriter();
-        $configuration = new ScanConfiguration(
-            locales: ['de'],
-            packageKey: 'Two13Tec.Senegal',
-            sourceName: 'Presentation.Cards',
-            paths: [$this->sandboxPath],
-            format: 'table',
-            dryRun: true,
-            update: true
-        );
-
-        $catalogIndex = $this->createCatalogIndex();
-        $mutation = new CatalogMutation(
-            locale: 'de',
-            packageKey: 'Two13Tec.Senegal',
-            sourceName: 'Presentation.Cards',
-            identifier: 'cards.additional',
-            fallback: 'Zusätzlicher Text'
-        );
-
-        $before = md5_file($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
-        $touched = $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
-        $after = md5_file($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
-
-        self::assertSame($before, $after);
-        self::assertSame([$this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf'], $touched);
     }
 
     /**
@@ -304,7 +269,6 @@ final class CatalogWriterTest extends TestCase
             sourceName: 'Presentation.Cards',
             paths: [$this->sandboxPath],
             format: 'table',
-            dryRun: false,
             update: true
         );
 
@@ -335,7 +299,6 @@ final class CatalogWriterTest extends TestCase
             sourceName: 'Presentation.Cards',
             paths: [$this->sandboxPath],
             format: 'table',
-            dryRun: false,
             update: true
         );
 

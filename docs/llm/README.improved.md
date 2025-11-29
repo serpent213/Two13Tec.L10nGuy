@@ -10,8 +10,8 @@ Scans PHP, Fusion, and YAML files for `I18n.translate()` calls, compares them ag
 # Find missing translations
 ./flow l10n:scan --package Two13Tec.Senegal
 
-# Delete unused catalog entries (dry-run first)
-./flow l10n:unused --package Two13Tec.Senegal --dry-run
+# Delete unused catalog entries
+./flow l10n:unused --package Two13Tec.Senegal
 
 # Enforce consistent XLF formatting
 ./flow l10n:format --check
@@ -30,8 +30,7 @@ Detects missing catalog entries and optionally writes them.
   --path DistributionPackages/... \ # Custom scan root
   --locales de,en \               # Specific locales (default: Flow i18n settings)
   --format table|json \           # Output format
-  --update \                      # Write missing entries to catalogs
-  --dry-run                       # Preview changes without writing
+  --update                        # Write missing entries to catalogs
 ```
 
 **Exit codes**: `0` clean, `5` missing translations, `7` fatal error
@@ -49,8 +48,7 @@ Finds catalog entries with no matching source reference.
   --package Two13Tec.Senegal \
   --locales de,en \
   --format table|json \
-  --delete \                      # Remove unused entries
-  --dry-run                       # Preview deletions
+  --delete                        # Remove unused entries
 ```
 
 **Exit codes**: `0` clean, `6` unused entries found, `7` fatal error

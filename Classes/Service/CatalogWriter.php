@@ -82,11 +82,6 @@ final class CatalogWriter
 
             $units = $this->orderUnits($units);
 
-            if ($configuration->dryRun) {
-                $touched[] = $filePath;
-                continue;
-            }
-
             $this->writeCatalogFile($filePath, $metadata, $units, $structure);
             $touched[] = $filePath;
         }
@@ -162,11 +157,6 @@ final class CatalogWriter
             }
 
             $units = $this->orderUnits($units);
-
-            if ($configuration->dryRun) {
-                $touched[] = $filePath;
-                continue;
-            }
 
             $this->writeCatalogFile($filePath, $metadata, $units, $structure);
             $touched[] = $filePath;

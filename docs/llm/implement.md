@@ -7,7 +7,7 @@
 - Wire a base functional test case that boots Flow with the fixture package mounted as `Two13Tec.Senegal` to keep later tests lean.
 
 **Tests**
-- Unit-test `ScanConfigurationFactory` to prove it merges CLI options with `Neos.Flow.i18n.*` (e.g., `--locales` overrides `defaultLocale + fallbackRule`). Validate `--dry-run` defaults to true until `--update` flips it.
+- Unit-test `ScanConfigurationFactory` to prove it merges CLI options with `Neos.Flow.i18n.*` (e.g., `--locales` overrides `defaultLocale + fallbackRule`).
 - Functional smoke test asserting the fixture package registers and Flow sees the `Two13Tec.Senegal` package (guards against missing fixture wiring).
 
 ## Phase 2 – Reference scanners
@@ -25,17 +25,17 @@
 - Integrate `Neos\Flow\I18n\Xliff\Service\XliffFileProvider` to load catalogs into `CatalogEntry` DTOs keyed by locale/package/source/id.
 - Implement `CatalogIndexBuilder` that respects locales produced in Phase 1, handles nested directories (`Presentation/Cards.xlf`, `NodeTypes/Document/Page.xlf`), and tracks file paths + XML metadata (product-name, target-language).
 - Implement `CatalogMutation` DTO with PHP 8.4 property hooks to normalize ids before writes and to copy fallback strings into new `source/target` nodes.
-- Implement `CatalogWriter` that groups mutations by locale/package/source, writes deterministic two-space-indented XML, and honors dry-run.
+- Implement `CatalogWriter` that groups mutations by locale/package/source and writes deterministic two-space-indented XML.
 
 **Tests**
 - Unit tests for `CatalogIndexBuilder` verifying locales load from both default + fallback and that catalogs missing files raise diagnostics instead of crashing.
-- Writer tests using temporary copies of fixture catalogs to ensure new `<trans-unit>` skeletons match PRD expectations (fallback duplicated into source/target, placeholders untouched). Verify dry-run leaves files untouched.
+- Writer tests using temporary copies of fixture catalogs to ensure new `<trans-unit>` skeletons match PRD expectations (fallback duplicated into source/target, placeholders untouched).
 - Regression-style test where `cards.moreButton` remains in catalogs but lacks references so that `CatalogIndex` faithfully reports it for the `unused` command.
 
 ## Phase 4 – `l10n:scan` command & reporting
 - Build the scan command flow: discover references → build catalog index → diff → emit `MissingTranslation` DTOs plus placeholder mismatch warnings → render via CLI table or JSON (shared renderer service).
 - Implement exit codes (`0` clean, `5` missing, `7` runtime failure) and propagate diagnostics (duplicates, placeholder mismatches) in human-friendly text.
-- Add support for `--package/--source/--path/--locales/--format/--dry-run` options per spec and ensure `--update` is routed to catalog writer.
+- Add support for `--package/--source/--path/--locales/--format` options per spec and ensure `--update` is routed to catalog writer.
 - Connect warnings/errors to Flow logging and ensure JSON output matches schema in PRD.
 
 **Tests**
@@ -47,14 +47,13 @@
 - Test `--format=table` path to confirm columns align with sample (assert string contains header row).
 
 ## Phase 5 – Update & unused flows + diagnostics
-- Extend `l10n:scan --update` to call `CatalogWriter` with grouped mutations, print touched files, and keep `--dry-run` default false unless explicitly set true.
+- Extend `l10n:scan --update` to call `CatalogWriter` with grouped mutations and print touched files as it writes.
 - Implement `LocalizationUnusedCommand` that reuses the reference index and catalog index to list entries absent from references, supports `--delete` (mutating catalogs) and `--format=table|json`, and exits with `6` when unused entries exist.
 - Surface diagnostics for XML parse errors, duplicate IDs, and placeholder mismatches through both commands.
 - Document CLI usage in `README.md`/docs referencing this plan.
 
 **Tests**
 - Functional test: `./flow l10n:scan --update --locales=de,en --package Two13Tec.Senegal` writes new entries and logs touched files; re-running `scan` should exit `0`.
-- Functional test: `./flow l10n:scan --update --dry-run` prints would-be writes but leaves catalogs untouched (validate via checksum).
 - Functional test: `./flow l10n:unused --format=json` returns `cards.moreButton` and exit code `6`; rerun with `--delete` removes the entry and subsequent invocation exits `0`.
 - Error-path tests (unit or integration) for malformed catalog XML and duplicate reference IDs to ensure exit code `7` and actionable messages.
 

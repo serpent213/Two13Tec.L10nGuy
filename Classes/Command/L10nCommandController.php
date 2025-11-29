@@ -92,7 +92,6 @@ class L10nCommandController extends CommandController
      * @param string|null $path Optional absolute/relative search root for references and catalogs
      * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
      * @param string|null $format Output format: table (default) or json
-     * @param bool|null $dryRun Do not write catalogs even when --update is set
      * @param bool|null $update Write missing catalog entries to XLF files
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      */
@@ -102,7 +101,6 @@ class L10nCommandController extends CommandController
         ?string $path = null,
         ?string $locales = null,
         ?string $format = null,
-        ?bool $dryRun = null,
         ?bool $update = null,
         ?bool $ignorePlaceholder = null
     ): void {
@@ -112,7 +110,6 @@ class L10nCommandController extends CommandController
             'paths' => $path ? [$path] : [],
             'locales' => $locales,
             'format' => $format,
-            'dryRun' => $dryRun,
             'update' => $update,
             'ignorePlaceholder' => $ignorePlaceholder,
         ]);
@@ -120,12 +117,12 @@ class L10nCommandController extends CommandController
         $isJson = $configuration->format === 'json';
         if (!$isJson) {
             $this->outputLine(
-                'Prepared scan for %s (locales: %s, format: %s, dry-run: %s).',
+                'Prepared scan for %s (locales: %s, format: %s, update: %s).',
                 [
                     $configuration->packageKey ?? 'all packages',
                     $configuration->locales === [] ? '<none>' : implode(', ', $configuration->locales),
                     $configuration->format,
-                    $configuration->dryRun ? 'yes' : 'no',
+                    $configuration->update ? 'yes' : 'no',
                 ]
             );
         }
@@ -181,7 +178,6 @@ class L10nCommandController extends CommandController
      * @param string|null $path Optional absolute/relative root for catalog discovery
      * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
      * @param string|null $format Output format: table (default) or json
-     * @param bool|null $dryRun Report only; do not delete entries
      * @param bool|null $delete Delete unused catalog entries
      */
     public function unusedCommand(
@@ -190,7 +186,6 @@ class L10nCommandController extends CommandController
         ?string $path = null,
         ?string $locales = null,
         ?string $format = null,
-        ?bool $dryRun = null,
         ?bool $delete = null
     ): void {
         $configuration = $this->scanConfigurationFactory->createFromCliOptions([
@@ -199,19 +194,18 @@ class L10nCommandController extends CommandController
             'paths' => $path ? [$path] : [],
             'locales' => $locales,
             'format' => $format,
-            'dryRun' => $dryRun,
             'update' => $delete,
         ]);
 
         $isJson = $configuration->format === 'json';
         if (!$isJson) {
             $this->outputLine(
-                'Prepared unused sweep for %s (locales: %s, format: %s, dry-run: %s).',
+                'Prepared unused sweep for %s (locales: %s, format: %s, delete: %s).',
                 [
                     $configuration->packageKey ?? 'all packages',
                     $configuration->locales === [] ? '<none>' : implode(', ', $configuration->locales),
                     $configuration->format,
-                    $configuration->dryRun ? 'yes' : 'no',
+                    $configuration->update ? 'yes' : 'no',
                 ]
             );
         }
@@ -629,12 +623,7 @@ class L10nCommandController extends CommandController
             return $this->exitCode(self::EXIT_KEY_FAILURE, 7);
         }
 
-        $hasUnused = $unusedEntries !== [];
-        if ($configuration->update && !$configuration->dryRun) {
-            $hasUnused = false;
-        }
-
-        if ($hasUnused) {
+        if ($unusedEntries !== [] && !$configuration->update) {
             return $this->exitCode(self::EXIT_KEY_UNUSED, 6);
         }
 

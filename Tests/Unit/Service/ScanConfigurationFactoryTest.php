@@ -37,7 +37,6 @@ final class ScanConfigurationFactoryTest extends TestCase
         $configuration = $factory->createFromCliOptions();
 
         self::assertSame(['de', 'en'], $configuration->locales);
-        self::assertTrue($configuration->dryRun);
     }
 
     /**
@@ -68,7 +67,7 @@ final class ScanConfigurationFactoryTest extends TestCase
     /**
      * @test
      */
-    public function updateModeDisablesDryRunByDefault(): void
+    public function updateFlagIsExplicitOptIn(): void
     {
         $factory = new ScanConfigurationFactory(
             flowI18nSettings: [],
@@ -78,13 +77,7 @@ final class ScanConfigurationFactoryTest extends TestCase
         $updateConfiguration = $factory->createFromCliOptions([
             'update' => true,
         ]);
-        self::assertFalse($updateConfiguration->dryRun);
-
-        $explicitDryRunConfiguration = $factory->createFromCliOptions([
-            'update' => true,
-            'dryRun' => true,
-        ]);
-        self::assertTrue($explicitDryRunConfiguration->dryRun);
+        self::assertTrue($updateConfiguration->update);
     }
 
     /**

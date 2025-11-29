@@ -79,7 +79,6 @@ final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCa
             'path' => static::getFixturePackagePath(),
             'locales' => 'de,en',
             'format' => null,
-            'dryRun' => null,
             'delete' => null,
         ], $overrides);
 
@@ -90,7 +89,6 @@ final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCa
                 $arguments['path'],
                 $arguments['locales'],
                 $arguments['format'],
-                $arguments['dryRun'],
                 $arguments['delete']
             );
         } catch (StopCommandException) {
