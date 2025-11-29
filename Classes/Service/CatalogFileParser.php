@@ -14,6 +14,8 @@ namespace Two13Tec\L10nGuy\Service;
  * source code.
  */
 
+use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
+
 /**
  * Lightweight XML parser used to inspect catalog metadata and existing units.
  */
@@ -39,16 +41,21 @@ final class CatalogFileParser
 
         $contents = @file_get_contents($filePath);
         if ($contents === false) {
-            return ['meta' => $meta, 'units' => $units];
+            throw CatalogFileParserException::becauseUnreadable($filePath);
+        }
+        if (trim($contents) === '') {
+            throw CatalogFileParserException::becauseEmpty($filePath);
         }
 
         $normalizedXml = preg_replace('/xmlns="[^"]+"/', '', $contents, 1) ?? $contents;
         $previousSetting = libxml_use_internal_errors(true);
         $xml = simplexml_load_string($normalizedXml);
         if ($xml === false) {
+            $error = libxml_get_last_error();
             libxml_clear_errors();
             libxml_use_internal_errors($previousSetting);
-            return ['meta' => $meta, 'units' => $units];
+            $reason = $error?->message ?? '';
+            throw CatalogFileParserException::becauseMalformed($filePath, $reason);
         }
 
         $fileElement = $xml->file[0] ?? null;

@@ -19,6 +19,7 @@ use PHPUnit\Framework\TestCase;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
+use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
 use Two13Tec\L10nGuy\Service\CatalogFileParser;
 use Two13Tec\L10nGuy\Service\CatalogWriter;
 
@@ -165,6 +166,104 @@ final class CatalogWriterTest extends TestCase
         $contents = (string)file_get_contents($filePath);
         self::assertStringContainsString(PHP_EOL . '        <body>' . PHP_EOL, $contents);
         self::assertStringContainsString(PHP_EOL . '                <source>Example</source>' . PHP_EOL, $contents);
+    }
+
+    /**
+     * @test
+     */
+    public function preservesUnicodePlaceholderNames(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            paths: [$this->sandboxPath],
+            format: 'table',
+            dryRun: false,
+            update: true
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutation = new CatalogMutation(
+            locale: 'en',
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            identifier: 'cards.unicode',
+            fallback: 'Grüße {会議時間}'
+        );
+
+        $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
+
+        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        self::assertStringContainsString('<source>Grüße {会議時間}</source>', $contents);
+    }
+
+    /**
+     * @test
+     */
+    public function abortsWhenCatalogCannotBeParsed(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            paths: [$this->sandboxPath],
+            format: 'table',
+            dryRun: false,
+            update: true
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf';
+        file_put_contents($filePath, '<xliff><broken>');
+        $mutation = new CatalogMutation(
+            locale: 'en',
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            identifier: 'cards.invalid',
+            fallback: 'Invalid'
+        );
+
+        $this->expectException(CatalogFileParserException::class);
+
+        $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
+    }
+
+    /**
+     * @test
+     */
+    public function throwsWhenWritingToReadOnlyCatalog(): void
+    {
+        $writer = new CatalogWriter();
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/ReadOnly.xlf';
+        $metadata = [
+            'productName' => 'ReadOnly',
+            'sourceLanguage' => 'en',
+            'targetLanguage' => 'de',
+            'original' => '',
+            'datatype' => 'plaintext',
+        ];
+        $units = [
+            'read.only' => [
+                'source' => 'Foo',
+                'target' => 'Bar',
+                'state' => null,
+            ],
+        ];
+        Files::createDirectoryRecursively(dirname($filePath));
+        file_put_contents($filePath, '<dummy/>');
+        chmod($filePath, 0444);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to write catalog file');
+
+        try {
+            $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'de', true);
+        } finally {
+            chmod($filePath, 0644);
+        }
     }
 
     private function createCatalogIndex(): CatalogIndex

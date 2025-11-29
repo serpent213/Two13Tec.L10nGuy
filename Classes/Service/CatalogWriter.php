@@ -341,7 +341,10 @@ final class CatalogWriter
             Files::createDirectoryRecursively($directory);
         }
 
-        file_put_contents($filePath, $contents);
+        $bytesWritten = @file_put_contents($filePath, $contents);
+        if ($bytesWritten === false) {
+            throw new \RuntimeException(sprintf('Unable to write catalog file "%s".', $filePath));
+        }
     }
 
     private function resolveCatalogPath(ScanConfiguration $configuration, string $basePath, string $packageKey, string $locale, string $sourceName): ?string
