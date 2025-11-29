@@ -29,6 +29,13 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: composer
 
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-${{ matrix.php }}-
+
       - name: Install just
         uses: extractions/setup-just@v2
 
@@ -40,6 +47,13 @@ jobs:
       - name: Install php-cs-fixer
         run: composer global require friendsofphp/php-cs-fixer:^3.87
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
       - name: Install prettier
         run: npm install -g prettier
 
@@ -48,8 +62,6 @@ jobs:
           export PATH="$HOME/.composer/vendor/bin:$PATH"
           treefmt --clear-cache
           just lint
-        env:
-          XDG_CACHE_HOME: ${{ github.workspace }}/.cache
 
   test:
     name: "Test (PHP ${{ matrix.php }}, Neos ${{ matrix.neos }})"
