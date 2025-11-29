@@ -12,6 +12,9 @@ Two13Tec:
         - name: afx
           pattern: 'Resources/**/*.afx'
           enabled: true
+        - name: nodeTypes
+          pattern: 'NodeTypes/**/*.yaml'
+          enabled: true
         - name: yaml
           pattern: 'Configuration/**/*.yaml'
           enabled: true

@@ -57,6 +57,29 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     /**
      * @test
      */
+    public function scanCommandIndexesNodeTypeYamlLabels(): void
+    {
+        [$output, $exitCode] = $this->runScan([
+            'format' => 'json',
+        ]);
+
+        self::assertSame(5, $exitCode);
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        $contactFormLabels = array_values(array_filter(
+            $payload['missing'] ?? [],
+            static fn (array $row): bool => $row['source'] === 'NodeTypes.Content.ContactForm'
+                && $row['id'] === 'properties.subject'
+        ));
+
+        self::assertCount(2, $contactFormLabels);
+        $locales = array_values(array_unique(array_column($contactFormLabels, 'locale')));
+        sort($locales);
+        self::assertSame(['de', 'en'], $locales);
+    }
+
+    /**
+     * @test
+     */
     public function scanCommandEmitsPlaceholderWarning(): void
     {
         [$output] = $this->runScan();
