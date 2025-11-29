@@ -497,26 +497,11 @@ class L10nCommandController extends CommandController
         ScanConfiguration $configuration
     ): array {
         $unused = [];
-        foreach ($catalogIndex->entries() as $locale => $packages) {
-            if ($configuration->locales !== [] && !in_array($locale, $configuration->locales, true)) {
+        foreach ($this->iterateFilteredCatalogEntries($catalogIndex, $configuration) as $entry) {
+            if ($referenceIndex->allFor($entry->packageKey, $entry->sourceName, $entry->identifier) !== []) {
                 continue;
             }
-            foreach ($packages as $packageKey => $sources) {
-                if ($configuration->packageKey !== null && $configuration->packageKey !== $packageKey) {
-                    continue;
-                }
-                foreach ($sources as $sourceName => $identifiers) {
-                    if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
-                        continue;
-                    }
-                    foreach ($identifiers as $identifier => $entry) {
-                        if ($referenceIndex->allFor($packageKey, $sourceName, $identifier) !== []) {
-                            continue;
-                        }
-                        $unused[] = $entry;
-                    }
-                }
-            }
+            $unused[] = $entry;
         }
 
         return $unused;
@@ -576,25 +561,21 @@ class L10nCommandController extends CommandController
     private function summarizeReferenceDuplicates(ReferenceIndex $referenceIndex): array
     {
         $duplicates = [];
-        foreach ($referenceIndex->duplicates() as $packageKey => $sources) {
-            foreach ($sources as $sourceName => $identifiers) {
-                foreach ($identifiers as $identifier => $_list) {
-                    $allReferences = $referenceIndex->allFor($packageKey, $sourceName, $identifier);
-                    $duplicates[] = [
-                        'package' => $packageKey,
-                        'source' => $sourceName,
-                        'id' => $identifier,
-                        'occurrences' => count($allReferences),
-                        'files' => array_map(
-                            fn ($reference) => [
-                                'file' => $this->relativePath($reference->filePath),
-                                'line' => $reference->lineNumber,
-                            ],
-                            $allReferences
-                        ),
-                    ];
-                }
-            }
+        foreach ($this->iterateDuplicateIdentifiers($referenceIndex) as [$packageKey, $sourceName, $identifier]) {
+            $allReferences = $referenceIndex->allFor($packageKey, $sourceName, $identifier);
+            $duplicates[] = [
+                'package' => $packageKey,
+                'source' => $sourceName,
+                'id' => $identifier,
+                'occurrences' => count($allReferences),
+                'files' => array_map(
+                    fn ($reference) => [
+                        'file' => $this->relativePath($reference->filePath),
+                        'line' => $reference->lineNumber,
+                    ],
+                    $allReferences
+                ),
+            ];
         }
 
         return $duplicates;
@@ -646,6 +627,50 @@ class L10nCommandController extends CommandController
     private function exitCode(string $key, int $fallback): int
     {
         return $this->exitCodes[$key] ?? $fallback;
+    }
+
+    /**
+     * @return iterable<CatalogEntry>
+     */
+    private function iterateFilteredCatalogEntries(
+        CatalogIndex $catalogIndex,
+        ScanConfiguration $configuration
+    ): iterable {
+        foreach ($catalogIndex->entries() as $locale => $packages) {
+            if ($configuration->locales !== [] && !in_array($locale, $configuration->locales, true)) {
+                continue;
+            }
+
+            foreach ($packages as $packageKey => $sources) {
+                if ($configuration->packageKey !== null && $configuration->packageKey !== $packageKey) {
+                    continue;
+                }
+
+                foreach ($sources as $sourceName => $identifiers) {
+                    if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
+                        continue;
+                    }
+
+                    foreach ($identifiers as $entry) {
+                        yield $entry;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: string, 2: string}>
+     */
+    private function iterateDuplicateIdentifiers(ReferenceIndex $referenceIndex): iterable
+    {
+        foreach ($referenceIndex->duplicates() as $packageKey => $sources) {
+            foreach ($sources as $sourceName => $identifiers) {
+                foreach (array_keys($identifiers) as $identifier) {
+                    yield [$packageKey, $sourceName, $identifier];
+                }
+            }
+        }
     }
 
     private function relativePath(string $path): string

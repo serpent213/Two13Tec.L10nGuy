@@ -83,22 +83,19 @@ final class ReferenceIndex
     public function uniqueCount(): int
     {
         $count = 0;
-        foreach ($this->references as $sources) {
-            foreach ($sources as $identifiers) {
-                $count += count($identifiers);
-            }
+        foreach ($this->iterateIdentifierBuckets($this->references) as $identifiers) {
+            $count += count($identifiers);
         }
+
         return $count;
     }
 
     public function duplicateCount(): int
     {
         $count = 0;
-        foreach ($this->duplicates as $sources) {
-            foreach ($sources as $identifiers) {
-                foreach ($identifiers as $list) {
-                    $count += count($list);
-                }
+        foreach ($this->iterateIdentifierBuckets($this->duplicates) as $identifiers) {
+            foreach ($identifiers as $list) {
+                $count += count($list);
             }
         }
 
@@ -108,5 +105,19 @@ final class ReferenceIndex
     public function totalCount(): int
     {
         return $this->total;
+    }
+
+    /**
+     * @template TValue
+     * @param array<string, array<string, array<string, TValue>>> $map
+     * @return iterable<array<string, TValue>>
+     */
+    private function iterateIdentifierBuckets(array $map): iterable
+    {
+        foreach ($map as $sources) {
+            foreach ($sources as $identifiers) {
+                yield $identifiers;
+            }
+        }
     }
 }

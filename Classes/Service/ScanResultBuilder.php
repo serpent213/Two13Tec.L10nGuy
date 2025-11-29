@@ -22,6 +22,7 @@ use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationReference;
 
 /**
  * Compares reference and catalog indexes to produce actionable scan results.
@@ -43,58 +44,22 @@ final class ScanResultBuilder
         $missing = [];
         $placeholderMismatches = [];
 
-        foreach ($referenceIndex->references() as $packageKey => $sources) {
-            if ($configuration->packageKey !== null && $configuration->packageKey !== $packageKey) {
-                continue;
-            }
-
-            foreach ($sources as $sourceName => $identifiers) {
-                if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
-                    continue;
-                }
-
-                foreach ($identifiers as $identifier => $reference) {
-                    $referencePlaceholderNames = array_keys($reference->placeholders);
-                    $fallbackPlaceholders = $this->extractPlaceholders($reference->fallback);
-
-                    foreach ($locales as $locale) {
-                        $entries = $catalogIndex->entriesFor($locale, $packageKey, $sourceName);
-                        $entry = $entries[$identifier] ?? null;
-
-                        if ($entry === null) {
-                            $missing[] = new MissingTranslation(
-                                locale: $locale,
-                                packageKey: $packageKey,
-                                sourceName: $sourceName,
-                                identifier: $identifier,
-                                reference: $reference
-                            );
-                            continue;
-                        }
-
-                        $catalogPlaceholders = $this->extractPlaceholdersFromEntry($entry);
-                        $expectedPlaceholders = array_unique(
-                            array_merge($catalogPlaceholders, $fallbackPlaceholders)
-                        );
-                        sort($expectedPlaceholders);
-
-                        $missingPlaceholders = array_values(array_diff($expectedPlaceholders, $referencePlaceholderNames));
-                        if ($missingPlaceholders !== []) {
-                            $placeholderMismatches[] = new PlaceholderMismatch(
-                                locale: $locale,
-                                packageKey: $packageKey,
-                                sourceName: $sourceName,
-                                identifier: $identifier,
-                                missingPlaceholders: $missingPlaceholders,
-                                referencePlaceholders: array_values($referencePlaceholderNames),
-                                catalogPlaceholders: $catalogPlaceholders,
-                                reference: $reference,
-                                catalogEntry: $entry
-                            );
-                        }
-                    }
-                }
-            }
+        foreach ($this->iterateFilteredReferences($referenceIndex, $configuration) as [
+            $packageKey,
+            $sourceName,
+            $identifier,
+            $reference,
+        ]) {
+            $this->processReference(
+                $packageKey,
+                $sourceName,
+                $identifier,
+                $reference,
+                $locales,
+                $catalogIndex,
+                $missing,
+                $placeholderMismatches
+            );
         }
 
         return new ScanResult(
@@ -139,5 +104,85 @@ final class ScanResultBuilder
         sort($placeholders);
 
         return $placeholders;
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: string, 2: string, 3: TranslationReference}>
+     */
+    private function iterateFilteredReferences(
+        ReferenceIndex $referenceIndex,
+        ScanConfiguration $configuration
+    ): iterable {
+        foreach ($referenceIndex->references() as $packageKey => $sources) {
+            if ($configuration->packageKey !== null && $configuration->packageKey !== $packageKey) {
+                continue;
+            }
+
+            foreach ($sources as $sourceName => $identifiers) {
+                if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
+                    continue;
+                }
+
+                foreach ($identifiers as $identifier => $reference) {
+                    yield [$packageKey, $sourceName, $identifier, $reference];
+                }
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $locales
+     * @param list<MissingTranslation> $missing
+     * @param list<PlaceholderMismatch> $placeholderMismatches
+     */
+    private function processReference(
+        string $packageKey,
+        string $sourceName,
+        string $identifier,
+        TranslationReference $reference,
+        array $locales,
+        CatalogIndex $catalogIndex,
+        array &$missing,
+        array &$placeholderMismatches
+    ): void {
+        $referencePlaceholderNames = array_keys($reference->placeholders);
+        $fallbackPlaceholders = $this->extractPlaceholders($reference->fallback);
+
+        foreach ($locales as $locale) {
+            $entries = $catalogIndex->entriesFor($locale, $packageKey, $sourceName);
+            $entry = $entries[$identifier] ?? null;
+
+            if ($entry === null) {
+                $missing[] = new MissingTranslation(
+                    locale: $locale,
+                    packageKey: $packageKey,
+                    sourceName: $sourceName,
+                    identifier: $identifier,
+                    reference: $reference
+                );
+                continue;
+            }
+
+            $catalogPlaceholders = $this->extractPlaceholdersFromEntry($entry);
+            $expectedPlaceholders = array_unique(
+                array_merge($catalogPlaceholders, $fallbackPlaceholders)
+            );
+            sort($expectedPlaceholders);
+
+            $missingPlaceholders = array_values(array_diff($expectedPlaceholders, $referencePlaceholderNames));
+            if ($missingPlaceholders !== []) {
+                $placeholderMismatches[] = new PlaceholderMismatch(
+                    locale: $locale,
+                    packageKey: $packageKey,
+                    sourceName: $sourceName,
+                    identifier: $identifier,
+                    missingPlaceholders: $missingPlaceholders,
+                    referencePlaceholders: array_values($referencePlaceholderNames),
+                    catalogPlaceholders: $catalogPlaceholders,
+                    reference: $reference,
+                    catalogEntry: $entry
+                );
+            }
+        }
     }
 }

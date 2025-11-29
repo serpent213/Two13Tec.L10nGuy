@@ -129,17 +129,13 @@ final class CatalogIndex
     public function catalogList(): array
     {
         $catalogs = [];
-        foreach ($this->catalogFiles as $locale => $packages) {
-            foreach ($packages as $packageKey => $sources) {
-                foreach ($sources as $sourceName => $data) {
-                    $catalogs[] = [
-                        'locale' => $locale,
-                        'packageKey' => $packageKey,
-                        'sourceName' => $sourceName,
-                        'path' => $data['path'],
-                    ];
-                }
-            }
+        foreach ($this->iterateCatalogFileContexts() as [$locale, $packageKey, $sourceName, $data]) {
+            $catalogs[] = [
+                'locale' => $locale,
+                'packageKey' => $packageKey,
+                'sourceName' => $sourceName,
+                'path' => $data['path'],
+            ];
         }
 
         return $catalogs;
@@ -167,5 +163,19 @@ final class CatalogIndex
     public function errors(): array
     {
         return $this->errors;
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: string, 2: string, 3: array{path: string, metadata: array<string, mixed>}}>
+     */
+    private function iterateCatalogFileContexts(): iterable
+    {
+        foreach ($this->catalogFiles as $locale => $packages) {
+            foreach ($packages as $packageKey => $sources) {
+                foreach ($sources as $sourceName => $data) {
+                    yield [$locale, $packageKey, $sourceName, $data];
+                }
+            }
+        }
     }
 }
