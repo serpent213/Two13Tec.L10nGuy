@@ -35,6 +35,7 @@ final readonly class ScanConfiguration
         public string $format,
         public bool $dryRun,
         public bool $update,
+        public bool $ignorePlaceholderWarnings = false,
         public array $meta = [],
     ) {
     }

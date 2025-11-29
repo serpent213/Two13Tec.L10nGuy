@@ -91,7 +91,8 @@ class L10nCommandController extends CommandController
         ?string $locales = null,
         ?string $format = null,
         ?bool $dryRun = null,
-        ?bool $update = null
+        ?bool $update = null,
+        ?bool $ignorePlaceholder = null
     ): void {
         $configuration = $this->scanConfigurationFactory->createFromCliOptions([
             'package' => $package,
@@ -101,6 +102,7 @@ class L10nCommandController extends CommandController
             'format' => $format,
             'dryRun' => $dryRun,
             'update' => $update,
+            'ignorePlaceholder' => $ignorePlaceholder,
         ]);
 
         $isJson = $configuration->format === 'json';
@@ -360,7 +362,7 @@ class L10nCommandController extends CommandController
         }
 
         if ($configuration->format === 'json') {
-            $this->output($this->renderScanJson($scanResult));
+            $this->output($this->renderScanJson($scanResult, $configuration));
             $this->outputLine();
             return;
         }
@@ -368,7 +370,7 @@ class L10nCommandController extends CommandController
         $this->output($this->renderScanTable($scanResult));
         $this->outputLine();
 
-        if ($scanResult->placeholderMismatches !== []) {
+        if (!$configuration->ignorePlaceholderWarnings && $scanResult->placeholderMismatches !== []) {
             $this->outputLine('Placeholder warnings:');
             foreach ($scanResult->placeholderMismatches as $warning) {
                 $this->outputLine(
@@ -469,8 +471,13 @@ class L10nCommandController extends CommandController
         return (string)$table;
     }
 
-    private function renderScanJson(ScanResult $scanResult): string
+    private function renderScanJson(ScanResult $scanResult, ScanConfiguration $configuration): string
     {
+        $warnings = $scanResult->placeholderMismatches;
+        if ($configuration->ignorePlaceholderWarnings) {
+            $warnings = [];
+        }
+
         $payload = [
             'missing' => array_map(fn (MissingTranslation $missing) => [
                 'locale' => $missing->locale,
@@ -494,7 +501,7 @@ class L10nCommandController extends CommandController
                 'catalogPlaceholders' => $warning->catalogPlaceholders,
                 'file' => $this->relativePath($warning->reference->filePath),
                 'line' => $warning->reference->lineNumber,
-            ], $scanResult->placeholderMismatches),
+            ], $warnings),
             'duplicates' => $this->summarizeReferenceDuplicates($scanResult->referenceIndex),
             'diagnostics' => [
                 'errors' => $scanResult->catalogIndex->errors(),

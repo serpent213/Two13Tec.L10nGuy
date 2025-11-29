@@ -84,6 +84,7 @@ final class ScanConfigurationFactory
         $update = (bool)($cliOptions['update'] ?? false);
         $dryRun = $cliOptions['dryRun'] ?? null;
         $dryRun = $dryRun === null ? !$update : (bool)$dryRun;
+        $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
         $paths = $this->normalizeList($paths);
@@ -104,6 +105,7 @@ final class ScanConfigurationFactory
             $this->resolveFormat($cliOptions['format'] ?? null),
             $dryRun,
             $update,
+            $ignorePlaceholderWarnings,
             [
                 'cli' => $cliOptions,
             ]

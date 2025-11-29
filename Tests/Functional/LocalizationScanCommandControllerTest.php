@@ -68,6 +68,18 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     /**
      * @test
      */
+    public function scanCommandCanSuppressPlaceholderWarnings(): void
+    {
+        [$output] = $this->runScan([
+            'ignorePlaceholder' => true,
+        ]);
+
+        self::assertStringNotContainsString('Placeholder warnings', $output);
+    }
+
+    /**
+     * @test
+     */
     public function scanCommandUpdateWritesMissingEntries(): void
     {
         $cardsDe = self::getFixturePackagePath() . '/Resources/Private/Translations/de/Presentation/Cards.xlf';
@@ -120,6 +132,7 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
             'format' => null,
             'dryRun' => null,
             'update' => null,
+            'ignorePlaceholder' => null,
         ], $overrides);
 
         try {
@@ -130,7 +143,8 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
                 $arguments['locales'],
                 $arguments['format'],
                 $arguments['dryRun'],
-                $arguments['update']
+                $arguments['update'],
+                $arguments['ignorePlaceholder']
             );
         } catch (StopCommandException) {
         }
