@@ -313,10 +313,20 @@ XML;
 
         $output = (string)file_get_contents($filePath);
         self::assertStringContainsString('custom-file="keep"', $output);
-        self::assertStringContainsString('<header><meta keep="yes"/></header>', $output);
-        self::assertStringContainsString('<group id="plural" custom="true">', $output);
+        self::assertStringContainsString('<header>', $output);
+        self::assertStringContainsString('<meta keep="yes"/>', $output);
+        self::assertStringContainsString('<group custom="true" id="plural">', $output);
         self::assertStringContainsString('<note priority="1">Meta</note>', $output);
         self::assertStringContainsString('<target state="translated" reviewer="demo">Text</target>', $output);
+        self::assertStringContainsString(
+            PHP_EOL
+            . '      <group custom="true" id="plural">' . PHP_EOL
+            . '        <trans-unit id="plural[0]" xml:space="preserve">' . PHP_EOL
+            . '          <source>One</source>' . PHP_EOL
+            . '        </trans-unit>' . PHP_EOL
+            . '      </group>' . PHP_EOL,
+            $output
+        );
         self::assertLessThan(
             strpos($output, '<trans-unit id="simple"'),
             strpos($output, '<group id="plural"'),

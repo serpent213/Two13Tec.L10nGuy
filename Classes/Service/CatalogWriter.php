@@ -492,33 +492,145 @@ final class CatalogWriter
      */
     private function indentBlock(string $xml, int $indentLevel): array
     {
-        $xml = trim($xml);
-        if ($xml === '') {
-            return [];
+        $formatted = $this->formatXmlFragment($xml, $indentLevel);
+        if ($formatted !== null) {
+            return preg_split('/\r\n|\r|\n/', $formatted) ?: [];
         }
 
         $lines = preg_split('/\r\n|\r|\n/', $xml) ?: [];
+        while ($lines !== [] && trim($lines[0]) === '') {
+            array_shift($lines);
+        }
+        while ($lines !== [] && trim($lines[array_key_last($lines)]) === '') {
+            array_pop($lines);
+        }
+        if ($lines === []) {
+            return [];
+        }
+
         $minIndent = null;
         foreach ($lines as $line) {
             if (trim($line) === '') {
                 continue;
             }
-            $leadingSpaces = strlen($line) - strlen(ltrim($line, " \t"));
-            $minIndent = $minIndent === null ? $leadingSpaces : min($minIndent, $leadingSpaces);
-        }
-        if ($minIndent !== null && $minIndent > 0) {
-            foreach ($lines as &$line) {
-                $line = preg_replace('/^[ \t]{0,' . $minIndent . '}/', '', $line) ?? $line;
-            }
-            unset($line);
+            $leading = strlen($line) - strlen(ltrim($line, " \t"));
+            $minIndent = $minIndent === null ? $leading : min($minIndent, $leading);
         }
 
         $indented = [];
         foreach ($lines as $line) {
-            $indented[] = $this->indent($indentLevel) . $line;
+            $lineIndent = strlen($line) - strlen(ltrim($line, " \t"));
+            $relativeIndent = $minIndent === null ? 0 : max(0, $lineIndent - $minIndent);
+            $indented[] = $this->indent($indentLevel) . str_repeat(' ', $relativeIndent) . ltrim($line, " \t");
         }
 
         return $indented;
+    }
+
+    private function formatXmlFragment(string $xml, int $indentLevel): ?string
+    {
+        $trimmed = trim($xml);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $document = new \DOMDocument('1.0', 'UTF-8');
+        $document->preserveWhiteSpace = false;
+        $document->formatOutput = true;
+        $wrapped = '<__l10nguy_wrapper>' . $trimmed . '</__l10nguy_wrapper>';
+        if (@$document->loadXML($wrapped) === false) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($document->documentElement->childNodes as $child) {
+            if (!$child instanceof \DOMNode) {
+                continue;
+            }
+            $this->renderDomNode($child, $indentLevel, $lines);
+        }
+
+        return implode(PHP_EOL, $lines);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function renderDomNode(\DOMNode $node, int $indentLevel, array &$lines): void
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            $text = trim($node->textContent);
+            if ($text === '') {
+                return;
+            }
+            $lines[] = $this->indent($indentLevel) . htmlspecialchars($text, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+            return;
+        }
+
+        if ($node instanceof \DOMComment) {
+            $lines[] = $this->indent($indentLevel) . '<!--' . $node->nodeValue . '-->';
+            return;
+        }
+
+        if ($node->nodeType !== XML_ELEMENT_NODE) {
+            return;
+        }
+
+        $name = $node->nodeName;
+        $attributes = $this->collectDomAttributes($node);
+        $attributeString = $attributes === [] ? '' : ' ' . $this->formatAttributes($attributes);
+
+        $childElements = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) === '') {
+                continue;
+            }
+            $childElements[] = $child;
+        }
+
+        if ($childElements === []) {
+            $lines[] = $this->indent($indentLevel) . sprintf('<%s%s/>', $name, $attributeString);
+            return;
+        }
+
+        if (count($childElements) === 1 && ($childElements[0] instanceof \DOMText || $childElements[0] instanceof \DOMCdataSection)) {
+            $text = trim($childElements[0]->textContent);
+            $lines[] = sprintf(
+                '%s<%s%s>%s</%s>',
+                $this->indent($indentLevel),
+                $name,
+                $attributeString,
+                htmlspecialchars($text, ENT_XML1 | ENT_COMPAT, 'UTF-8'),
+                $name
+            );
+            return;
+        }
+
+        $lines[] = $this->indent($indentLevel) . sprintf('<%s%s>', $name, $attributeString);
+        foreach ($childElements as $child) {
+            $this->renderDomNode($child, $indentLevel + 1, $lines);
+        }
+        $lines[] = $this->indent($indentLevel) . sprintf('</%s>', $name);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function collectDomAttributes(\DOMElement $node): array
+    {
+        $attributes = [];
+        if ($node->hasAttributes()) {
+            foreach ($node->attributes as $attribute) {
+                if (!$attribute instanceof \DOMAttr) {
+                    continue;
+                }
+                $attributes[$attribute->nodeName] = $attribute->value;
+            }
+        }
+
+        ksort($attributes, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $attributes;
     }
 
     private function persistCatalog(string $filePath, string $contents): void
