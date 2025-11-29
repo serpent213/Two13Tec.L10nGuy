@@ -37,6 +37,47 @@ Run the commands from the project root (defaults to `Development` context). Comm
 
 See `docs/llm/flow_i18n_helper.md` for the full implementation brief, data model notes, and fixture descriptions.
 
+## Supported reference patterns
+
+### PHP
+
+```php
+// Neos I18n helper
+$this->translator->translateById(
+    'button.submit',
+    [],
+    null,
+    null,
+    'Forms',
+    'Two13Tec.Senegal'
+);
+
+// Static shorthand
+I18n::translate('Two13Tec.Senegal:Forms:button.submit');
+```
+
+### Fusion / AFX
+
+```fusion
+// Classic syntax
+label = ${I18n.translate('button.submit', 'Submit', {}, 'Forms', 'Two13Tec.Senegal')}
+
+// Fluent syntax
+label = ${Translation.id('button.submit').package('Two13Tec.Senegal').source('Forms').value('Submit')}
+```
+
+### YAML (NodeTypes)
+
+```yaml
+'Two13Tec.Senegal:Content.Card':
+  ui:
+    label: 'i18n'                # Detected as package:NodeTypes.Content.Card:label
+    inspector:
+      groups:
+        card:
+          label: 'i18n'          # Detected as package:NodeTypes.Content.Card:groups.card
+```
+
 ## Configuration presets
 
 The helper ships sane defaults in [`Configuration/Settings.L10nGuy.yaml`](Configuration/Settings.L10nGuy.yaml). Adjust them to fit your project:
@@ -80,6 +121,8 @@ Unit test fixtures live under `Tests/Fixtures/SenegalBaseline`; they are mirrore
 
 ## Requirements
 
-- PHP 8.4 (provided via the repo’s Nix/devshell setup).
-- Flow/Neos distribution bootstrapped via `composer install`.
+- PHP 8.4+ (provided via the repo’s Nix/devshell setup).
+- Flow/Neos distribution bootstrapped via `composer install`; we only use Flow’s CLI, DI attributes, and XLIFF provider APIs available since Flow 8, so any Flow/Neos version that supports PHP 8.4 should work (no Flow 9–only features).
+
+  See [GitHub Actions](https://github.com/serpent213/Two13Tec.L10nGuy/actions) for tested versions in CI.
 - Translations stored in standard Flow/Neos `Resources/Private/Translations/<locale>/…` paths so the catalog writer can resolve files.
