@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Two13Tec\L10nGuy\Domain\Dto;
 
 use Neos\Flow\Annotations as Flow;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 
 /*
  * This file is part of the Two13Tec.L10nGuy package.
@@ -115,17 +116,17 @@ final class CatalogIndex
     /**
      * @return array<string, CatalogEntry>
      */
-    public function entriesFor(string $locale, string $packageKey, string $sourceName): array
+    public function entriesFor(string $locale, TranslationKey $key): array
     {
-        return $this->entries[$locale][$packageKey][$sourceName] ?? [];
+        return $this->entries[$locale][$key->packageKey][$key->sourceName] ?? [];
     }
 
     /**
      * @return list<string>
      */
-    public function pluralGroup(string $locale, string $packageKey, string $sourceName, string $identifier): array
+    public function pluralGroup(string $locale, TranslationKey $key): array
     {
-        return $this->pluralGroups[$locale][$packageKey][$sourceName][$identifier] ?? [];
+        return $this->pluralGroups[$locale][$key->packageKey][$key->sourceName][$key->identifier] ?? [];
     }
 
     /**

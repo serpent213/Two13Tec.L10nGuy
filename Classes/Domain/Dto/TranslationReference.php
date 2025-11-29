@@ -41,4 +41,40 @@ final readonly class TranslationReference
         public bool $isPlural = false,
     ) {
     }
+
+    /**
+     * @return list<string>
+     */
+    public function placeholderNames(): array
+    {
+        return array_keys($this->placeholders);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function fallbackPlaceholders(): array
+    {
+        return $this->extractPlaceholders($this->fallback);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPlaceholders(?string $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        preg_match_all('/\{([A-Za-z0-9_.:-]+)\}/', $value, $matches);
+        if (!isset($matches[1])) {
+            return [];
+        }
+
+        $placeholders = array_values(array_unique(array_filter($matches[1], static fn ($placeholder) => $placeholder !== '')));
+        sort($placeholders);
+
+        return $placeholders;
+    }
 }

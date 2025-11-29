@@ -29,9 +29,7 @@ final readonly class PlaceholderMismatch
      */
     public function __construct(
         public string $locale,
-        public string $packageKey,
-        public string $sourceName,
-        public string $identifier,
+        public TranslationKey $key,
         public array $missingPlaceholders,
         public array $referencePlaceholders,
         public array $catalogPlaceholders,

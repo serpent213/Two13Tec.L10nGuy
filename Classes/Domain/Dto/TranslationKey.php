@@ -17,15 +17,20 @@ use Neos\Flow\Annotations as Flow;
  */
 
 /**
- * Represents a missing translation entry for a given locale.
+ * Identifies a translation by package, source and id.
  */
 #[Flow\Proxy(false)]
-final readonly class MissingTranslation
+final readonly class TranslationKey
 {
     public function __construct(
-        public string $locale,
-        public TranslationKey $key,
-        public TranslationReference $reference
+        public string $packageKey,
+        public string $sourceName,
+        public string $identifier
     ) {
+    }
+
+    public function withIdentifier(string $identifier): self
+    {
+        return new self($this->packageKey, $this->sourceName, $identifier);
     }
 }

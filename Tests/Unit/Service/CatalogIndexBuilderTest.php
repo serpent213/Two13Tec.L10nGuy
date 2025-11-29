@@ -19,6 +19,7 @@ use Neos\Flow\I18n\Xliff\Service\XliffFileProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
 use Two13Tec\L10nGuy\Service\FileDiscoveryService;
 
@@ -80,8 +81,9 @@ final class CatalogIndexBuilderTest extends TestCase
         );
 
         $index = $builder->build($configuration);
-        $entriesDe = $index->entriesFor('de', 'Two13Tec.Senegal', 'Presentation.Cards');
-        $entriesEn = $index->entriesFor('en', 'Two13Tec.Senegal', 'Presentation.Cards');
+        $key = new TranslationKey('Two13Tec.Senegal', 'Presentation.Cards', 'cards.placeholderWarning');
+        $entriesDe = $index->entriesFor('de', $key);
+        $entriesEn = $index->entriesFor('en', $key);
 
         self::assertArrayHasKey('cards.placeholderWarning', $entriesDe);
         self::assertArrayHasKey('cards.moreButton', $entriesEn);

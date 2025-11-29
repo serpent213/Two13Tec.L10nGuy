@@ -21,7 +21,6 @@ use Neos\Flow\Log\Utility\LogEnvironment;
 use Psr\Log\LoggerInterface;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
-use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
@@ -32,6 +31,7 @@ use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
 use Two13Tec\L10nGuy\Service\CatalogWriter;
 use Two13Tec\L10nGuy\Service\FileDiscoveryService;
 use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
+use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
 use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
 use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 
@@ -62,6 +62,9 @@ class L10nCommandController extends CommandController
 
     #[Flow\Inject]
     protected CatalogWriter $catalogWriter;
+
+    #[Flow\Inject]
+    protected CatalogMutationFactory $catalogMutationFactory;
 
     #[Flow\Inject]
     protected ScanResultBuilder $scanResultBuilder;
@@ -138,7 +141,7 @@ class L10nCommandController extends CommandController
         $this->renderScanReport($scanResult, $configuration);
 
         if ($configuration->update) {
-            $mutations = $this->buildMutations($scanResult);
+            $mutations = $this->catalogMutationFactory->fromScanResult($scanResult);
             if (!$isJson && $mutations === []) {
                 $this->outputLine('No catalog entries need to be created.');
             } elseif ($mutations !== []) {
@@ -377,9 +380,9 @@ class L10nCommandController extends CommandController
                     ' - [%s] %s / %s / %s missing {%s} (%s)',
                     [
                         $warning->locale,
-                        $warning->packageKey,
-                        $warning->sourceName,
-                        $warning->identifier,
+                        $warning->key->packageKey,
+                        $warning->key->sourceName,
+                        $warning->key->identifier,
                         implode(', ', $warning->missingPlaceholders),
                         $this->relativePath($warning->reference->filePath) . ':' . $warning->reference->lineNumber,
                     ]
@@ -387,9 +390,9 @@ class L10nCommandController extends CommandController
                 $this->logger->warning(
                     sprintf(
                         'Placeholder mismatch for %s:%s:%s (%s)',
-                        $warning->packageKey,
-                        $warning->sourceName,
-                        $warning->identifier,
+                        $warning->key->packageKey,
+                        $warning->key->sourceName,
+                        $warning->key->identifier,
                         $warning->locale
                     ),
                     array_merge(
@@ -410,51 +413,6 @@ class L10nCommandController extends CommandController
         if ($duplicateCount > 0) {
             $this->outputLine('Duplicate ids detected (%d occurrences).', [$duplicateCount]);
         }
-    }
-
-    /**
-     * @return list<CatalogMutation>
-     */
-    private function buildMutations(ScanResult $scanResult): array
-    {
-        $mutations = [];
-        foreach ($scanResult->missingTranslations as $missing) {
-            $fallback = $missing->reference->fallback;
-            if ($fallback === null || $fallback === '') {
-                $fallback = $this->fallbackWithPlaceholderHints(
-                    $missing->identifier,
-                    $missing->reference->placeholders
-                );
-            }
-
-            $mutations[] = new CatalogMutation(
-                locale: $missing->locale,
-                packageKey: $missing->packageKey,
-                sourceName: $missing->sourceName,
-                identifier: $missing->identifier,
-                fallback: $fallback,
-                placeholders: $missing->reference->placeholders
-            );
-        }
-
-        return $mutations;
-    }
-
-    /**
-     * @param array<string, string> $placeholderMap
-     */
-    private function fallbackWithPlaceholderHints(string $identifier, array $placeholderMap): string
-    {
-        if ($placeholderMap === []) {
-            return $identifier;
-        }
-
-        $placeholders = array_map(
-            static fn (string $name): string => sprintf('{%s}', $name),
-            array_keys($placeholderMap)
-        );
-
-        return trim($identifier . ' ' . implode(' ', $placeholders));
     }
 
     private function resolveScanExitCode(ScanResult $scanResult): int
@@ -484,9 +442,9 @@ class L10nCommandController extends CommandController
             $reference = $missing->reference;
             $table->row([
                 'Locale' => $missing->locale,
-                'Package' => $missing->packageKey,
-                'Source' => $missing->sourceName,
-                'Id' => $missing->identifier,
+                'Package' => $missing->key->packageKey,
+                'Source' => $missing->key->sourceName,
+                'Id' => $missing->key->identifier,
                 'Issue' => 'missing',
                 'File' => $this->relativePath($reference->filePath) . ':' . $reference->lineNumber,
             ]);
@@ -505,9 +463,9 @@ class L10nCommandController extends CommandController
         $payload = [
             'missing' => array_map(fn (MissingTranslation $missing) => [
                 'locale' => $missing->locale,
-                'package' => $missing->packageKey,
-                'source' => $missing->sourceName,
-                'id' => $missing->identifier,
+                'package' => $missing->key->packageKey,
+                'source' => $missing->key->sourceName,
+                'id' => $missing->key->identifier,
                 'issue' => 'missing',
                 'fallback' => $missing->reference->fallback,
                 'placeholders' => array_keys($missing->reference->placeholders),
@@ -516,9 +474,9 @@ class L10nCommandController extends CommandController
             ], $scanResult->missingTranslations),
             'warnings' => array_map(fn (PlaceholderMismatch $warning) => [
                 'locale' => $warning->locale,
-                'package' => $warning->packageKey,
-                'source' => $warning->sourceName,
-                'id' => $warning->identifier,
+                'package' => $warning->key->packageKey,
+                'source' => $warning->key->sourceName,
+                'id' => $warning->key->identifier,
                 'issue' => 'placeholder-mismatch',
                 'missingPlaceholders' => $warning->missingPlaceholders,
                 'referencePlaceholders' => $warning->referencePlaceholders,

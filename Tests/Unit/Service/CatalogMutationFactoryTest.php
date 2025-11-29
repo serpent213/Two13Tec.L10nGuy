@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Two13Tec\L10nGuy\Tests\Unit\Command;
+namespace Two13Tec\L10nGuy\Tests\Unit\Service;
 
 /*
  * This file is part of the Two13Tec.L10nGuy package.
@@ -15,24 +15,25 @@ namespace Two13Tec\L10nGuy\Tests\Unit\Command;
  */
 
 use PHPUnit\Framework\TestCase;
-use Two13Tec\L10nGuy\Command\L10nCommandController;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 use Two13Tec\L10nGuy\Domain\Dto\TranslationReference;
+use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
 
 /**
- * @covers \Two13Tec\L10nGuy\Command\L10nCommandController
+ * @covers \Two13Tec\L10nGuy\Service\CatalogMutationFactory
  */
-final class L10nCommandControllerTest extends TestCase
+final class CatalogMutationFactoryTest extends TestCase
 {
     /**
      * @test
      */
-    public function appendsPlaceholderHintsWhenFallbackMissing(): void
+    public function addsPlaceholderHintsWhenFallbackMissing(): void
     {
-        $controller = new L10nCommandController();
+        $factory = new CatalogMutationFactory();
         $reference = new TranslationReference(
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Main',
@@ -48,9 +49,7 @@ final class L10nCommandControllerTest extends TestCase
         );
         $missing = new MissingTranslation(
             locale: 'en',
-            packageKey: 'Two13Tec.Senegal',
-            sourceName: 'Main',
-            identifier: 'cards.title',
+            key: new TranslationKey('Two13Tec.Senegal', 'Main', 'cards.title'),
             reference: $reference
         );
         $scanResult = new ScanResult(
@@ -60,10 +59,7 @@ final class L10nCommandControllerTest extends TestCase
             catalogIndex: new CatalogIndex()
         );
 
-        $method = new \ReflectionMethod($controller, 'buildMutations');
-        $method->setAccessible(true);
-        /** @var list<\Two13Tec\L10nGuy\Domain\Dto\CatalogMutation> $mutations */
-        $mutations = $method->invoke($controller, $scanResult);
+        $mutations = $factory->fromScanResult($scanResult);
 
         self::assertCount(1, $mutations);
         self::assertSame('cards.title {first} {second}', $mutations[0]->fallback);

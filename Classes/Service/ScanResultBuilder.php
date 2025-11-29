@@ -22,6 +22,8 @@ use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Domain\Dto\ScanResultCollector;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 use Two13Tec\L10nGuy\Domain\Dto\TranslationReference;
 
 /**
@@ -41,33 +43,13 @@ final class ScanResultBuilder
             $locales = $catalogIndex->locales();
         }
 
-        $missing = [];
-        $placeholderMismatches = [];
+        $collector = new ScanResultCollector();
 
-        foreach ($this->iterateFilteredReferences($referenceIndex, $configuration) as [
-            $packageKey,
-            $sourceName,
-            $identifier,
-            $reference,
-        ]) {
-            $this->processReference(
-                $packageKey,
-                $sourceName,
-                $identifier,
-                $reference,
-                $locales,
-                $catalogIndex,
-                $missing,
-                $placeholderMismatches
-            );
+        foreach ($this->iterateFilteredReferences($referenceIndex, $configuration) as [$key, $reference]) {
+            $this->processReference($key, $reference, $locales, $catalogIndex, $collector);
         }
 
-        return new ScanResult(
-            missingTranslations: $missing,
-            placeholderMismatches: $placeholderMismatches,
-            referenceIndex: $referenceIndex,
-            catalogIndex: $catalogIndex
-        );
+        return $collector->build($referenceIndex, $catalogIndex);
     }
 
     /**
@@ -107,7 +89,7 @@ final class ScanResultBuilder
     }
 
     /**
-     * @return iterable<array{0: string, 1: string, 2: string, 3: TranslationReference}>
+     * @return iterable<array{0: TranslationKey, 1: TranslationReference}>
      */
     private function iterateFilteredReferences(
         ReferenceIndex $referenceIndex,
@@ -124,7 +106,7 @@ final class ScanResultBuilder
                 }
 
                 foreach ($identifiers as $identifier => $reference) {
-                    yield [$packageKey, $sourceName, $identifier, $reference];
+                    yield [new TranslationKey($packageKey, $sourceName, $identifier), $reference];
                 }
             }
         }
@@ -136,80 +118,70 @@ final class ScanResultBuilder
      * @param list<PlaceholderMismatch> $placeholderMismatches
      */
     private function processReference(
-        string $packageKey,
-        string $sourceName,
-        string $identifier,
+        TranslationKey $key,
         TranslationReference $reference,
         array $locales,
         CatalogIndex $catalogIndex,
-        array &$missing,
-        array &$placeholderMismatches
+        ScanResultCollector $collector
     ): void {
-        $referencePlaceholderNames = array_keys($reference->placeholders);
-        $fallbackPlaceholders = $this->extractPlaceholders($reference->fallback);
+        $referencePlaceholderNames = $reference->placeholderNames();
+        $fallbackPlaceholders = $reference->fallbackPlaceholders();
 
         foreach ($locales as $locale) {
-            $entries = $catalogIndex->entriesFor($locale, $packageKey, $sourceName);
+            $identifier = $key->identifier;
+            $entries = $catalogIndex->entriesFor($locale, $key);
 
             if ($reference->isPlural) {
                 $this->processPluralReference(
-                    $packageKey,
-                    $sourceName,
-                    $identifier,
+                    $key,
                     $reference,
                     $fallbackPlaceholders,
                     $referencePlaceholderNames,
                     $locale,
                     $entries,
                     $catalogIndex,
-                    $missing,
-                    $placeholderMismatches
+                    $collector
                 );
                 continue;
             }
 
+            $identifier = $key->identifier;
             $entry = $entries[$identifier] ?? null;
 
             if ($entry === null) {
-                $pluralForms = $catalogIndex->pluralGroup($locale, $packageKey, $sourceName, $identifier);
+                $pluralForms = $catalogIndex->pluralGroup($locale, $key);
                 if ($pluralForms !== []) {
                     $groupEntries = $this->entriesById($entries, $pluralForms);
                     if ($groupEntries !== []) {
                         $this->detectPlaceholderMismatchForEntries(
-                            $packageKey,
-                            $sourceName,
-                            $identifier,
+                            $key,
                             $reference,
                             $fallbackPlaceholders,
                             $referencePlaceholderNames,
                             $locale,
                             $groupEntries,
-                            $placeholderMismatches
+                            $collector
                         );
                         continue;
                     }
                 }
 
-                $missing[] = new MissingTranslation(
+                $collector->addMissing(new MissingTranslation(
                     locale: $locale,
-                    packageKey: $packageKey,
-                    sourceName: $sourceName,
-                    identifier: $identifier,
+                    key: $key,
                     reference: $reference
-                );
+                ));
                 continue;
             }
 
             $this->detectPlaceholderMismatchForEntries(
-                $packageKey,
-                $sourceName,
-                $identifier,
+                $key,
                 $reference,
                 $fallbackPlaceholders,
                 $referencePlaceholderNames,
                 $locale,
                 [$entry],
-                $placeholderMismatches
+                $collector
             );
         }
     }
@@ -220,23 +192,20 @@ final class ScanResultBuilder
      * @param list<PlaceholderMismatch> $placeholderMismatches
      */
     private function processPluralReference(
-        string $packageKey,
-        string $sourceName,
-        string $identifier,
+        TranslationKey $key,
         TranslationReference $reference,
         array $fallbackPlaceholders,
         array $referencePlaceholderNames,
         string $locale,
         array $entries,
         CatalogIndex $catalogIndex,
-        array &$missing,
-        array &$placeholderMismatches
+        ScanResultCollector $collector
     ): void {
-        $pluralForms = $catalogIndex->pluralGroup($locale, $packageKey, $sourceName, $identifier);
+        $pluralForms = $catalogIndex->pluralGroup($locale, $key);
         if ($pluralForms === []) {
             foreach ($entries as $entryIdentifier => $entry) {
                 $parsed = $this->parsePluralIdentifier($entryIdentifier);
-                if ($parsed !== null && $parsed['base'] === $identifier) {
+                if ($parsed !== null && $parsed['base'] === $key->identifier) {
                     $pluralForms[] = $entryIdentifier;
                 }
             }
@@ -259,13 +228,11 @@ final class ScanResultBuilder
             if (isset($formsByIndex[$expectedForm])) {
                 continue;
             }
-            $missing[] = new MissingTranslation(
+            $collector->addMissing(new MissingTranslation(
                 locale: $locale,
-                packageKey: $packageKey,
-                sourceName: $sourceName,
-                identifier: sprintf('%s[%d]', $identifier, $expectedForm),
+                key: $key->withIdentifier(sprintf('%s[%d]', $key->identifier, $expectedForm)),
                 reference: $reference
-            );
+            ));
         }
 
         if ($formsByIndex === []) {
@@ -273,15 +240,13 @@ final class ScanResultBuilder
         }
 
         $this->detectPlaceholderMismatchForEntries(
-            $packageKey,
-            $sourceName,
-            $identifier,
+            $key,
             $reference,
             $fallbackPlaceholders,
             $referencePlaceholderNames,
             $locale,
             array_values($formsByIndex),
-            $placeholderMismatches
+            $collector
         );
     }
 
@@ -292,15 +257,13 @@ final class ScanResultBuilder
      * @param list<CatalogEntry> $entries
      */
     private function detectPlaceholderMismatchForEntries(
-        string $packageKey,
-        string $sourceName,
-        string $identifier,
+        TranslationKey $key,
         TranslationReference $reference,
         array $fallbackPlaceholders,
         array $referencePlaceholderNames,
         string $locale,
         array $entries,
-        array &$placeholderMismatches
+        ScanResultCollector $collector
     ): void {
         $catalogPlaceholders = $this->aggregatePlaceholdersFromEntries($entries);
         $expectedPlaceholders = array_unique(
@@ -313,16 +276,16 @@ final class ScanResultBuilder
             return;
         }
 
-        $placeholderMismatches[] = new PlaceholderMismatch(
-            locale: $locale,
-            packageKey: $packageKey,
-            sourceName: $sourceName,
-            identifier: $identifier,
-            missingPlaceholders: $missingPlaceholders,
-            referencePlaceholders: array_values($referencePlaceholderNames),
-            catalogPlaceholders: $catalogPlaceholders,
-            reference: $reference,
-            catalogEntry: $entries[0] ?? null
+        $collector->addPlaceholderMismatch(
+            new PlaceholderMismatch(
+                locale: $locale,
+                key: $key,
+                missingPlaceholders: $missingPlaceholders,
+                referencePlaceholders: array_values($referencePlaceholderNames),
+                catalogPlaceholders: $catalogPlaceholders,
+                reference: $reference,
+                catalogEntry: $entries[0] ?? null
+            )
         );
     }
 
