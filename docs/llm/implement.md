@@ -2,7 +2,7 @@
 
 ## Phase 1 – Domain scaffolding & Senegal fixtures
 - Scaffold Flow CLI command classes under `Two13Tec\L10nGuy\Command\` (`LocalizationScanCommand`, `LocalizationUnusedCommand`) plus shared services (`ScanConfigurationFactory`, `FileDiscoveryService`, DTOs described in the brief).
-- Register configuration defaults under `Neos.Flow.i18n.helper.*` (file patterns, default format, exit codes) and expose Flow settings injection.
+- Register configuration defaults under `Two13Tec.L10nGuy.*` (file patterns, default format, exit codes) and expose Flow settings injection.
 - Create trimmed `Tests/Fixtures/SenegalBaseline` tree mirroring the PRD sources (Fusion snippets, NodeTypes YAML, locales `de/en` catalogs, `Settings.Flow.yaml`).
 - Wire a base functional test case that boots Flow with the fixture package mounted as `Two13Tec.Senegal` to keep later tests lean.
 

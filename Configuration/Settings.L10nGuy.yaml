@@ -1,0 +1,34 @@
+Two13Tec:
+  L10nGuy:
+    # Patterns are evaluated within the package or path being processed
+    filePatterns:
+      includes:
+        - name: php
+          pattern: 'Classes/**/*.php'
+          enabled: true
+        - name: fusion
+          pattern: 'Resources/**/*.fusion'
+          enabled: true
+        - name: afx
+          pattern: 'Resources/**/*.afx'
+          enabled: true
+        - name: yaml
+          pattern: 'Configuration/**/*.yaml'
+          enabled: true
+        - name: translations
+          pattern: 'Resources/Private/Translations/**/*.xlf'
+          enabled: true
+      excludes:
+        - name: node_modules
+          pattern: '**/node_modules/**'
+          enabled: true
+        - name: build
+          pattern: 'Build/**'
+          enabled: true
+    defaultFormat: 'table'
+    exitCodes:
+      success: 0
+      missing: 5
+      unused: 6
+      failure: 7
+      dirty: 8

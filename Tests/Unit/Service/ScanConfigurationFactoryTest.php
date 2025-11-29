@@ -31,7 +31,7 @@ final class ScanConfigurationFactoryTest extends TestCase
                     'order' => ['en'],
                 ],
             ],
-            helperSettings: ['defaultFormat' => 'table']
+            defaultFormat: 'table'
         );
 
         $configuration = $factory->createFromCliOptions();
@@ -52,7 +52,7 @@ final class ScanConfigurationFactoryTest extends TestCase
                     'order' => ['en'],
                 ],
             ],
-            helperSettings: ['defaultFormat' => 'json']
+            defaultFormat: 'json'
         );
 
         $configuration = $factory->createFromCliOptions([
@@ -72,7 +72,7 @@ final class ScanConfigurationFactoryTest extends TestCase
     {
         $factory = new ScanConfigurationFactory(
             flowI18nSettings: [],
-            helperSettings: ['defaultFormat' => 'table']
+            defaultFormat: 'table'
         );
 
         $updateConfiguration = $factory->createFromCliOptions([

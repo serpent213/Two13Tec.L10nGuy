@@ -63,7 +63,7 @@ class L10nCommandController extends CommandController
     #[Flow\Inject]
     protected LoggerInterface $logger;
 
-    #[Flow\InjectConfiguration(path: 'i18n.helper.exitCodes', package: 'Neos.Flow')]
+    #[Flow\InjectConfiguration(path: 'exitCodes', package: 'Two13Tec.L10nGuy')]
     protected array $exitCodes = [];
 
     /**

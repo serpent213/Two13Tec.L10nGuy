@@ -27,20 +27,20 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'i18n', package: 'Neos.Flow')]
     protected array $flowI18nSettings = [];
 
-    #[Flow\InjectConfiguration(path: 'i18n.helper', package: 'Neos.Flow')]
-    protected array $helperSettings = [];
+    #[Flow\InjectConfiguration(path: 'defaultFormat', package: 'Two13Tec.L10nGuy')]
+    protected string $defaultFormat = 'table';
 
     /**
      * @param array<string, mixed>|null $flowI18nSettings
-     * @param array<string, mixed>|null $helperSettings
+     * @param string|null $defaultFormat
      */
-    public function __construct(?array $flowI18nSettings = null, ?array $helperSettings = null)
+    public function __construct(?array $flowI18nSettings = null, ?string $defaultFormat = null)
     {
         if ($flowI18nSettings !== null) {
             $this->flowI18nSettings = $flowI18nSettings;
         }
-        if ($helperSettings !== null) {
-            $this->helperSettings = $helperSettings;
+        if ($defaultFormat !== null) {
+            $this->defaultFormat = $defaultFormat;
         }
     }
 
@@ -72,7 +72,7 @@ final class ScanConfigurationFactory
 
     private function resolveFormat(?string $format): string
     {
-        $format = $format ?: ($this->helperSettings['defaultFormat'] ?? 'table');
+        $format = $format ?: $this->defaultFormat;
         return strtolower($format);
     }
 

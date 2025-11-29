@@ -157,7 +157,7 @@ Shared options:
 ## Implementation building blocks
 
 ### File discovery
-- Configure defaults under `Neos.Flow.i18n.helper.filePatterns` with `includes` covering `Classes/**/*.php`, `Resources/**/*.fusion`, `Resources/**/*.afx`, `Configuration/**/*.yaml`, and `Resources/Private/Translations/**/*.xlf`.
+- Configure defaults under `Two13Tec.L10nGuy.filePatterns` with `includes` covering `Classes/**/*.php`, `Resources/**/*.fusion`, `Resources/**/*.afx`, `Configuration/**/*.yaml`, and `Resources/Private/Translations/**/*.xlf`.
 - Patterns follow `{ name, pattern, enabled = true, priority = 100 }` to allow downstream overrides.
 - Use `Neos\Utility\Files::readDirectoryRecursively()` to gather files, then filter with `flow.utility.files::getMatchingFiles()` while honoring excludes.
 

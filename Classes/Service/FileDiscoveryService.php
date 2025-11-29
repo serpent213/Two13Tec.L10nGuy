@@ -25,7 +25,7 @@ use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
  */
 final class FileDiscoveryService
 {
-    #[Flow\InjectConfiguration(path: 'i18n.helper.filePatterns', package: 'Neos.Flow')]
+    #[Flow\InjectConfiguration(path: 'filePatterns', package: 'Two13Tec.L10nGuy')]
     protected array $filePatternSettings = [];
 
     /**

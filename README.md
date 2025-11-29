@@ -3,6 +3,7 @@
 Flow CLI companion that keeps Neos translation catalogs in sync with the actual usage inside Fusion, PHP and YAML sources.
 
 ## Features
+
 - `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source.
 - `./flow l10n:unused` – lists catalog entries that no longer have a matching reference; can delete unused nodes in place (with dry-run support) to keep XLFs tidy.
 - `./flow l10n:format` – re-renders existing catalogs using the helper’s writer so indentation, attribute ordering, and trailing newlines stay consistent (supports `--check` for CI).
@@ -10,6 +11,7 @@ Flow CLI companion that keeps Neos translation catalogs in sync with the actual 
 - Comprehensive fixtures + functional tests mirror real-life components
 
 ## Usage
+
 Run the commands from the project root (defaults to `Development` context). Common options work for both commands:
 
 ```bash
@@ -39,6 +41,13 @@ Run the commands from the project root (defaults to `Development` context). Comm
 
 See `docs/llm/flow_i18n_helper.md` for the full implementation brief, data model notes, and fixture descriptions.
 
+## Configuration presets
+
+The helper ships sane defaults for discovery patterns inside [`Configuration/Settings.Flow.yaml`](Configuration/Settings.Flow.yaml). Adjust them to fit your project:
+- Add new include/exclude patterns under `Two13Tec.L10nGuy.filePatterns` to scan extra paths (e.g., `Resources/Private/Templates/**/*.html`). Disable an existing preset by setting `enabled: false` on the entry instead of deleting it, so future updates remain mergeable.
+
+Neos/Flow configuration conventions apply, so you can override these keys per context (`Settings.Development.yaml`, etc.) without touching the distributed defaults.
+
 ## Development workflow
 
 Inside `DistributionPackages/Two13Tec.L10nGuy` you can use the bundled `just` targets (ensure the project dev shell is active first):
@@ -57,6 +66,7 @@ XDG_CACHE_HOME=$PWD/.cache just test
 Unit test fixtures live under `Tests/Fixtures/SenegalBaseline`; they are mirrored into Flow’s `Data/Temporary` folder for functional tests, so you can edit them freely and re-run the suites to simulate real catalog changes.
 
 ## Requirements
+
 - PHP 8.4 (provided via the repo’s Nix/devshell setup).
 - Flow/Neos distribution bootstrapped via `composer install`.
 - Translations stored in standard Flow/Neos `Resources/Private/Translations/<locale>/…` paths so the catalog writer can resolve files.
