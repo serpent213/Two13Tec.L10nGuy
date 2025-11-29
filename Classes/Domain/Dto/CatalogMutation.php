@@ -20,6 +20,9 @@ namespace Two13Tec\L10nGuy\Domain\Dto;
 final class CatalogMutation
 {
     private string $normalizedIdentifier = '';
+    private string $fallbackValue = '';
+    private string $sourceValue = '';
+    private string $targetValue = '';
 
     /**
      * @param array<string, string> $placeholders
@@ -29,14 +32,39 @@ final class CatalogMutation
         public readonly string $packageKey,
         public readonly string $sourceName,
         string $identifier = '',
-        public string $fallback = '',
+        string $fallback = '',
         public array $placeholders = [],
     ) {
         $this->identifier = $identifier;
+        $this->fallback = $fallback;
     }
 
     public string $identifier {
         get => $this->normalizedIdentifier;
         set => $this->normalizedIdentifier = trim((string)$value);
+    }
+
+    public string $fallback {
+        get => $this->fallbackValue;
+        set {
+            $value = trim((string)$value);
+            $this->fallbackValue = $value;
+            if ($this->source === '') {
+                $this->source = $value;
+            }
+            if ($this->target === '') {
+                $this->target = $value;
+            }
+        }
+    }
+
+    public string $source {
+        get => $this->sourceValue;
+        set => $this->sourceValue = (string)$value;
+    }
+
+    public string $target {
+        get => $this->targetValue;
+        set => $this->targetValue = (string)$value;
     }
 }
