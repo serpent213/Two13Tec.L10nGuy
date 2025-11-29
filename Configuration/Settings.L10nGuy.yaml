@@ -27,6 +27,7 @@ Two13Tec:
           enabled: true
     defaultFormat: 'table'
     tabWidth: 2
+    orderById: false
     defaultLocales: []
     defaultPackages: []
     defaultPaths: []

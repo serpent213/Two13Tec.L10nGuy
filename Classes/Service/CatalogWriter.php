@@ -31,7 +31,9 @@ final class CatalogWriter
 {
     public function __construct(
         #[Flow\InjectConfiguration(path: 'tabWidth', package: 'Two13Tec.L10nGuy')]
-        protected int $tabWidth = 2
+        protected int $tabWidth = 2,
+        #[Flow\InjectConfiguration(path: 'orderById', package: 'Two13Tec.L10nGuy')]
+        protected bool $orderById = false
     ) {
         if ($this->tabWidth < 0) {
             $this->tabWidth = 0;
@@ -78,7 +80,7 @@ final class CatalogWriter
                 continue;
             }
 
-            ksort($units, SORT_NATURAL | SORT_FLAG_CASE);
+            $units = $this->orderUnits($units);
 
             if ($configuration->dryRun) {
                 $touched[] = $filePath;
@@ -159,9 +161,7 @@ final class CatalogWriter
                 continue;
             }
 
-            if ($units !== []) {
-                ksort($units, SORT_NATURAL | SORT_FLAG_CASE);
-            }
+            $units = $this->orderUnits($units);
 
             if ($configuration->dryRun) {
                 $touched[] = $filePath;
@@ -271,7 +271,9 @@ final class CatalogWriter
                 'identifier' => $identifier,
                 'index' => $formIndex,
             ];
-            ksort($units[$baseId]['forms'], SORT_NUMERIC);
+            if ($this->orderById) {
+                ksort($units[$baseId]['forms'], SORT_NUMERIC);
+            }
 
             return true;
         }
@@ -288,7 +290,9 @@ final class CatalogWriter
                 'identifier' => $formIdentifier,
                 'index' => 0,
             ];
-            ksort($units[$identifier]['forms'], SORT_NUMERIC);
+            if ($this->orderById) {
+                ksort($units[$identifier]['forms'], SORT_NUMERIC);
+            }
 
             return true;
         }
@@ -494,16 +498,19 @@ final class CatalogWriter
         }
         $lines[] = $this->indent(2) . '<body>';
 
-        $sortedUnits = $units;
-        ksort($sortedUnits, SORT_NATURAL | SORT_FLAG_CASE);
+        $sortedUnits = $this->orderUnits($units);
         $usedIdentifiers = [];
 
         $bodyOrder = $structure['bodyOrder'] ?? [];
+        $processOrderedIdentifiers = !$this->orderById;
         foreach ($bodyOrder as $element) {
             if (($element['type'] ?? '') === 'unknown' && isset($element['xml'])) {
                 foreach ($this->indentBlock((string)$element['xml'], 3) as $line) {
                     $lines[] = $line;
                 }
+                continue;
+            }
+            if (!$processOrderedIdentifiers) {
                 continue;
             }
             if (!isset($element['identifier'])) {
@@ -529,6 +536,48 @@ final class CatalogWriter
         $lines[] = '</xliff>';
 
         return implode(PHP_EOL, $lines) . PHP_EOL;
+    }
+
+    /**
+     * @param array<string, mixed> $units
+     * @return array<string, mixed>
+     */
+    private function orderUnits(array $units): array
+    {
+        if (!$this->orderById || $units === []) {
+            return $units;
+        }
+
+        $identifiers = array_keys($units);
+        natcasesort($identifiers);
+
+        $ordered = [];
+        foreach ($identifiers as $identifier) {
+            $ordered[(string)$identifier] = $units[$identifier];
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param array<int, array<mixed>> $forms
+     * @return array<int, array<mixed>>
+     */
+    private function orderPluralForms(array $forms): array
+    {
+        if (!$this->orderById || $forms === []) {
+            return $forms;
+        }
+
+        $indices = array_keys($forms);
+        sort($indices, SORT_NUMERIC);
+
+        $ordered = [];
+        foreach ($indices as $index) {
+            $ordered[(int)$index] = $forms[$index];
+        }
+
+        return $ordered;
     }
 
     /**
@@ -578,8 +627,7 @@ final class CatalogWriter
         $lines = [];
         $lines[] = sprintf('%s<group %s>', $this->indent(3), $this->formatAttributes($attributes));
 
-        $forms = $unit['forms'] ?? [];
-        ksort($forms, SORT_NUMERIC);
+        $forms = $this->orderPluralForms($unit['forms'] ?? []);
         $formQueue = [];
         foreach ($forms as $index => $form) {
             $formQueue[(int)$index] = $form;

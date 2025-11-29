@@ -217,6 +217,84 @@ final class CatalogWriterTest extends TestCase
     /**
      * @test
      */
+    public function orderByIdFlagDisablesSorting(): void
+    {
+        $writer = new CatalogWriter(orderById: false);
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Order.xlf';
+        $metadata = [
+            'productName' => 'Order',
+            'sourceLanguage' => 'en',
+            'targetLanguage' => null,
+            'original' => '',
+            'datatype' => 'plaintext',
+        ];
+        $units = [
+            'z.last' => [
+                'source' => 'Z',
+                'target' => null,
+                'state' => null,
+            ],
+            'a.first' => [
+                'source' => 'A',
+                'target' => null,
+                'state' => null,
+            ],
+        ];
+
+        $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'en', true);
+
+        $contents = (string)file_get_contents($filePath);
+        self::assertMatchesRegularExpression(
+            '/<trans-unit id="z\\.last"[^>]*>.*<trans-unit id="a\\.first"/s',
+            $contents
+        );
+    }
+
+    /**
+     * @test
+     */
+    public function orderByIdSortingOverridesExistingBodyOrder(): void
+    {
+        $writer = new CatalogWriter(orderById: true);
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/BodyOrder.xlf';
+        $metadata = [
+            'productName' => 'Order',
+            'sourceLanguage' => 'en',
+            'targetLanguage' => null,
+            'original' => '',
+            'datatype' => 'plaintext',
+        ];
+        $units = [
+            'z.last' => [
+                'source' => 'Z',
+                'target' => null,
+                'state' => null,
+            ],
+            'a.first' => [
+                'source' => 'A',
+                'target' => null,
+                'state' => null,
+            ],
+        ];
+        $structure = [
+            'bodyOrder' => [
+                ['type' => 'trans-unit', 'identifier' => 'z.last'],
+                ['type' => 'trans-unit', 'identifier' => 'a.first'],
+            ],
+        ];
+
+        $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'en', true, $structure);
+
+        $contents = (string)file_get_contents($filePath);
+        self::assertMatchesRegularExpression(
+            '/<trans-unit id="a\\.first"[^>]*>.*<trans-unit id="z\\.last"/s',
+            $contents
+        );
+    }
+
+    /**
+     * @test
+     */
     public function preservesUnicodePlaceholderNames(): void
     {
         $writer = new CatalogWriter();
