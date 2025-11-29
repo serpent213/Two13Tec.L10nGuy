@@ -125,4 +125,43 @@ final class ScanConfigurationFactoryTest extends TestCase
         self::assertSame('Acme.Demo', $configuration->packageKey);
         self::assertSame(['DistributionPackages/Acme.Demo'], $configuration->paths);
     }
+
+    /**
+     * @test
+     */
+    public function helperLocaleDefaultsOverrideFlowSettings(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [
+                'defaultLocale' => 'de',
+                'fallbackRule' => [
+                    'order' => ['en'],
+                ],
+            ],
+            defaultFormat: 'table',
+            defaultLocales: ['fr', 'es']
+        );
+
+        $configuration = $factory->createFromCliOptions([]);
+
+        self::assertSame(['fr', 'es'], $configuration->locales);
+    }
+
+    /**
+     * @test
+     */
+    public function cliLocaleOverrideBeatsHelperDefaults(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultLocales: ['fr', 'es']
+        );
+
+        $configuration = $factory->createFromCliOptions([
+            'locales' => 'de , en',
+        ]);
+
+        self::assertSame(['de', 'en'], $configuration->locales);
+    }
 }

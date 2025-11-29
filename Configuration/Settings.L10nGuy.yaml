@@ -26,6 +26,7 @@ Two13Tec:
           pattern: 'Build/**'
           enabled: true
     defaultFormat: 'table'
+    defaultLocales: []
     defaultPackages: []
     defaultPaths: []
     exitCodes:

@@ -30,6 +30,9 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'defaultFormat', package: 'Two13Tec.L10nGuy')]
     protected string $defaultFormat = 'table';
 
+    #[Flow\InjectConfiguration(path: 'defaultLocales', package: 'Two13Tec.L10nGuy')]
+    protected array $defaultLocales = [];
+
     #[Flow\InjectConfiguration(path: 'defaultPackages', package: 'Two13Tec.L10nGuy')]
     protected array $defaultPackages = [];
 
@@ -39,12 +42,14 @@ final class ScanConfigurationFactory
     /**
      * @param array<string, mixed>|null $flowI18nSettings
      * @param string|null $defaultFormat
+     * @param list<string>|null $defaultLocales
      * @param list<string>|null $defaultPackages
      * @param list<string>|null $defaultPaths
      */
     public function __construct(
         ?array $flowI18nSettings = null,
         ?string $defaultFormat = null,
+        ?array $defaultLocales = null,
         ?array $defaultPackages = null,
         ?array $defaultPaths = null
     ) {
@@ -53,6 +58,11 @@ final class ScanConfigurationFactory
         }
         if ($defaultFormat !== null) {
             $this->defaultFormat = $defaultFormat;
+        }
+        if ($defaultLocales !== null) {
+            $this->defaultLocales = $this->normalizeList($defaultLocales);
+        } else {
+            $this->defaultLocales = $this->normalizeList($this->defaultLocales);
         }
         if ($defaultPackages !== null) {
             $this->defaultPackages = $this->normalizeList($defaultPackages);
@@ -110,6 +120,10 @@ final class ScanConfigurationFactory
     {
         if ($override !== null && $override !== '') {
             return $this->normalizeList($override);
+        }
+
+        if ($this->defaultLocales !== []) {
+            return $this->defaultLocales;
         }
 
         $locales = [];
