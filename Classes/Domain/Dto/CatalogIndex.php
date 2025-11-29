@@ -28,6 +28,11 @@ final class CatalogIndex
     private array $entries = [];
 
     /**
+     * @var array<string, array<string, array<string, array<string, list<string>>>>>
+     */
+    private array $pluralGroups = [];
+
+    /**
      * @var array<string, array<string, array<string, array{path: string, metadata: array<string, mixed>}>>>
      */
     private array $catalogFiles = [];
@@ -51,6 +56,17 @@ final class CatalogIndex
     {
         $this->entries[$entry->locale][$entry->packageKey][$entry->sourceName][$entry->identifier] = $entry;
         $this->sources[$entry->packageKey][$entry->sourceName] = true;
+    }
+
+    /**
+     * @param list<string> $forms
+     */
+    public function addPluralGroup(string $locale, string $packageKey, string $sourceName, string $identifier, array $forms): void
+    {
+        $uniqueForms = array_values(array_unique($forms));
+        sort($uniqueForms, SORT_NATURAL | SORT_FLAG_CASE);
+        $this->pluralGroups[$locale][$packageKey][$sourceName][$identifier] = $uniqueForms;
+        $this->sources[$packageKey][$sourceName] = true;
     }
 
     public function registerCatalogFile(string $locale, string $packageKey, string $sourceName, string $filePath, array $metadata = []): void
@@ -102,6 +118,14 @@ final class CatalogIndex
     public function entriesFor(string $locale, string $packageKey, string $sourceName): array
     {
         return $this->entries[$locale][$packageKey][$sourceName] ?? [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function pluralGroup(string $locale, string $packageKey, string $sourceName, string $identifier): array
+    {
+        return $this->pluralGroups[$locale][$packageKey][$sourceName][$identifier] ?? [];
     }
 
     /**

@@ -132,9 +132,6 @@ final class CatalogIndexBuilder
         return null;
     }
 
-    /**
-     * @param array<string, array{source: ?string, target: ?string, state: ?string}> $nativeUnits
-     */
     private function addEntriesFromProvider(
         CatalogIndex $index,
         SplFileInfo $fileInfo,
@@ -167,9 +164,37 @@ final class CatalogIndexBuilder
         }
 
         foreach ($nativeUnits as $identifier => $unit) {
+            if (($unit['type'] ?? 'single') === 'plural') {
+                $forms = $unit['forms'] ?? [];
+                $formIdentifiers = [];
+                foreach ($forms as $formIndex => $formData) {
+                    $formIdentifier = $formData['id'] ?? ($identifier . '[' . $formIndex . ']');
+                    $formIdentifiers[] = $formIdentifier;
+                    $resolved = $translationUnits[$formIdentifier][0] ?? [
+                        'source' => $formData['source'] ?? null,
+                        'target' => $formData['target'] ?? null,
+                    ];
+
+                    $index->addEntry(new CatalogEntry(
+                        locale: $locale,
+                        packageKey: $packageKey,
+                        sourceName: $sourceName,
+                        identifier: $formIdentifier,
+                        filePath: $fileInfo->getPathname(),
+                        source: $resolved['source'] ?? null,
+                        target: $resolved['target'] ?? null,
+                        state: $formData['state'] ?? null
+                    ));
+                }
+                if ($formIdentifiers !== []) {
+                    $index->addPluralGroup($locale, $packageKey, $sourceName, $identifier, $formIdentifiers);
+                }
+                continue;
+            }
+
             $resolved = $translationUnits[$identifier][0] ?? [
-                'source' => $unit['source'],
-                'target' => $unit['target'],
+                'source' => $unit['source'] ?? null,
+                'target' => $unit['target'] ?? null,
             ];
 
             $index->addEntry(new CatalogEntry(

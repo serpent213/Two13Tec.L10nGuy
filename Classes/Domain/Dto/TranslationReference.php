@@ -38,6 +38,7 @@ final readonly class TranslationReference
         public int $lineNumber,
         public ?string $fallback = null,
         public array $placeholders = [],
+        public bool $isPlural = false,
     ) {
     }
 }

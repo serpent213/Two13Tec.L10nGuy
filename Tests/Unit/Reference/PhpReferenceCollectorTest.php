@@ -54,6 +54,32 @@ final class PhpReferenceCollectorTest extends TestCase
         self::assertNull($alertReference->fallback);
     }
 
+    /**
+     * @test
+     */
+    public function detectsPluralInvocation(): void
+    {
+        $filePath = sys_get_temp_dir() . '/plural_' . bin2hex(random_bytes(4)) . '.php';
+        $code = <<<'PHP'
+<?php
+use Neos\Flow\I18n as I18n;
+
+I18n::plural('items.count', 'One', ['count' => $count], 'Presentation.Cards', 'Two13Tec.Senegal');
+PHP;
+        file_put_contents($filePath, $code);
+
+        try {
+            $file = new \SplFileInfo($filePath);
+            $references = $this->collector->collect($file);
+
+            self::assertCount(1, $references);
+            self::assertTrue($references[0]->isPlural);
+            self::assertSame('items.count', $references[0]->identifier);
+        } finally {
+            @unlink($filePath);
+        }
+    }
+
     private function fixturePath(string $relative): string
     {
         return FLOW_PATH_ROOT . 'DistributionPackages/Two13Tec.L10nGuy/Tests/Fixtures/SenegalBaseline/' . $relative;

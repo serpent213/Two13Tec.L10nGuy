@@ -106,7 +106,8 @@ final class PhpReferenceCollector implements ReferenceCollectorInterface
 
         $normalizedClass = ltrim($className, '\\');
         $isTranslationClass = in_array($normalizedClass, ['I18n', 'Neos\\Flow\\I18n'], true);
-        if ($isTranslationClass && $methodName === 'translate') {
+        if ($isTranslationClass && in_array($methodName, ['translate', 'plural'], true)) {
+            $isPlural = $methodName === 'plural';
             return $this->createReference(
                 identifier: $this->resolveStringArgument($call->args[0] ?? null),
                 fallback: $this->resolveStringArgument($call->args[1] ?? null),
@@ -114,7 +115,8 @@ final class PhpReferenceCollector implements ReferenceCollectorInterface
                 sourceName: $this->resolveStringArgument($call->args[3] ?? null),
                 packageKey: $this->resolveStringArgument($call->args[4] ?? null),
                 filePath: $filePath,
-                lineNumber: $call->getStartLine()
+                lineNumber: $call->getStartLine(),
+                isPlural: $isPlural
             );
         }
 
@@ -153,7 +155,8 @@ final class PhpReferenceCollector implements ReferenceCollectorInterface
         ?string $sourceName,
         ?string $packageKey,
         string $filePath,
-        int $lineNumber
+        int $lineNumber,
+        bool $isPlural = false
     ): ?TranslationReference {
         if ($identifier === null) {
             return null;
@@ -172,7 +175,8 @@ final class PhpReferenceCollector implements ReferenceCollectorInterface
             filePath: $filePath,
             lineNumber: $lineNumber,
             fallback: $fallback,
-            placeholders: $placeholders
+            placeholders: $placeholders,
+            isPlural: $isPlural
         );
     }
 

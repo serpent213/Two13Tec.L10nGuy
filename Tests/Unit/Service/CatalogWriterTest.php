@@ -109,6 +109,52 @@ final class CatalogWriterTest extends TestCase
     /**
      * @test
      */
+    public function writesPluralMutationsIntoGroup(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            paths: [$this->sandboxPath],
+            format: 'table',
+            dryRun: false,
+            update: true
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutations = [
+            new CatalogMutation(
+                locale: 'en',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.plural[0]',
+                fallback: 'One card'
+            ),
+            new CatalogMutation(
+                locale: 'en',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.plural[1]',
+                fallback: '{count} cards'
+            ),
+        ];
+
+        $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
+
+        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        self::assertStringContainsString('<group id="cards.plural" restype="x-gettext-plurals">', $contents);
+        self::assertStringContainsString('<trans-unit id="cards.plural[0]" xml:space="preserve">', $contents);
+        self::assertStringContainsString('<trans-unit id="cards.plural[1]" xml:space="preserve">', $contents);
+        self::assertLessThan(
+            strpos($contents, '<trans-unit id="cards.plural[1]"'),
+            strpos($contents, '<trans-unit id="cards.plural[0]"')
+        );
+    }
+
+    /**
+     * @test
+     */
     public function dryRunLeavesCatalogsUntouched(): void
     {
         $writer = new CatalogWriter();

@@ -44,6 +44,9 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
         foreach ($this->collectI18nTranslateCalls($contents, $file->getPathname()) as $reference) {
             $references[] = $reference;
         }
+        foreach ($this->collectI18nPluralCalls($contents, $file->getPathname()) as $reference) {
+            $references[] = $reference;
+        }
         foreach ($this->collectFluentCalls($contents, $file->getPathname()) as $reference) {
             $references[] = $reference;
         }
@@ -56,7 +59,22 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
      */
     private function collectI18nTranslateCalls(string $contents, string $filePath): iterable
     {
-        $token = 'I18n.translate';
+        return $this->collectI18nCalls($contents, $filePath, 'I18n.translate', false);
+    }
+
+    /**
+     * @return iterable<TranslationReference>
+     */
+    private function collectI18nPluralCalls(string $contents, string $filePath): iterable
+    {
+        return $this->collectI18nCalls($contents, $filePath, 'I18n.plural', true);
+    }
+
+    /**
+     * @return iterable<TranslationReference>
+     */
+    private function collectI18nCalls(string $contents, string $filePath, string $token, bool $isPlural): iterable
+    {
         $offset = 0;
 
         while (($position = strpos($contents, $token, $offset)) !== false) {
@@ -79,7 +97,8 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
                 sourceName: $sourceName,
                 packageKey: $packageKey,
                 filePath: $filePath,
-                lineNumber: $this->lineNumberFromContents($contents, $position)
+                lineNumber: $this->lineNumberFromContents($contents, $position),
+                isPlural: $isPlural
             );
             if ($reference !== null) {
                 yield $reference;
@@ -94,65 +113,71 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
      */
     private function collectFluentCalls(string $contents, string $filePath): iterable
     {
-        $token = 'Translation.id';
-        $offset = 0;
         $length = strlen($contents);
 
-        while (($position = strpos($contents, $token, $offset)) !== false) {
-            $call = $this->extractFunctionCall($contents, $position + strlen($token));
-            if ($call === null) {
-                break;
-            }
+        foreach (['Translation.id' => false, 'Translation.plural' => true] as $token => $isPluralStart) {
+            $offset = 0;
 
-            $identifier = $this->stringLiteral($call['arguments']);
-            $chainOffset = $call['end'];
-            $packageKey = null;
-            $sourceName = null;
-            $placeholders = [];
-            $fallback = null;
-
-            while ($chainOffset < $length) {
-                $chainOffset = $this->skipWhitespace($contents, $chainOffset);
-                if ($chainOffset >= $length || $contents[$chainOffset] !== '.') {
+            while (($position = strpos($contents, $token, $offset)) !== false) {
+                $call = $this->extractFunctionCall($contents, $position + strlen($token));
+                if ($call === null) {
                     break;
                 }
-                $chainOffset++;
-                $methodName = $this->readIdentifier($contents, $chainOffset);
-                if ($methodName === '') {
-                    break;
-                }
-                $chainOffset += strlen($methodName);
-                $callData = $this->extractFunctionCall($contents, $chainOffset);
-                if ($callData === null) {
-                    break;
-                }
-                $argument = $callData['arguments'];
-                if ($methodName === 'package') {
-                    $packageKey = $this->stringLiteral($argument);
-                } elseif ($methodName === 'source') {
-                    $sourceName = $this->stringLiteral($argument);
-                } elseif ($methodName === 'arguments') {
-                    $placeholders = $this->extractPlaceholderMap($argument);
-                } elseif ($methodName === 'value') {
-                    $fallback = $this->stringLiteral($argument);
-                }
-                $chainOffset = $callData['end'];
-            }
 
-            $reference = $this->createReference(
-                identifier: $identifier,
-                fallback: $fallback,
-                placeholders: $placeholders,
-                sourceName: $sourceName,
-                packageKey: $packageKey,
-                filePath: $filePath,
-                lineNumber: $this->lineNumberFromContents($contents, $position)
-            );
-            if ($reference !== null) {
-                yield $reference;
-            }
+                $identifier = $this->stringLiteral($call['arguments']);
+                $chainOffset = $call['end'];
+                $packageKey = null;
+                $sourceName = null;
+                $placeholders = [];
+                $fallback = null;
+                $isPlural = $isPluralStart;
 
-            $offset = max($chainOffset, $position + strlen($token));
+                while ($chainOffset < $length) {
+                    $chainOffset = $this->skipWhitespace($contents, $chainOffset);
+                    if ($chainOffset >= $length || $contents[$chainOffset] !== '.') {
+                        break;
+                    }
+                    $chainOffset++;
+                    $methodName = $this->readIdentifier($contents, $chainOffset);
+                    if ($methodName === '') {
+                        break;
+                    }
+                    $chainOffset += strlen($methodName);
+                    $callData = $this->extractFunctionCall($contents, $chainOffset);
+                    if ($callData === null) {
+                        break;
+                    }
+                    $argument = $callData['arguments'];
+                    if ($methodName === 'package') {
+                        $packageKey = $this->stringLiteral($argument);
+                    } elseif ($methodName === 'source') {
+                        $sourceName = $this->stringLiteral($argument);
+                    } elseif ($methodName === 'arguments') {
+                        $placeholders = $this->extractPlaceholderMap($argument);
+                    } elseif ($methodName === 'value') {
+                        $fallback = $this->stringLiteral($argument);
+                    } elseif ($methodName === 'plural') {
+                        $isPlural = true;
+                    }
+                    $chainOffset = $callData['end'];
+                }
+
+                $reference = $this->createReference(
+                    identifier: $identifier,
+                    fallback: $fallback,
+                    placeholders: $placeholders,
+                    sourceName: $sourceName,
+                    packageKey: $packageKey,
+                    filePath: $filePath,
+                    lineNumber: $this->lineNumberFromContents($contents, $position),
+                    isPlural: $isPlural
+                );
+                if ($reference !== null) {
+                    yield $reference;
+                }
+
+                $offset = max($chainOffset, $position + strlen($token));
+            }
         }
     }
 
@@ -178,7 +203,8 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
         ?string $sourceName,
         ?string $packageKey,
         string $filePath,
-        int $lineNumber
+        int $lineNumber,
+        bool $isPlural = false
     ): ?TranslationReference {
         if ($identifier === null) {
             return null;
@@ -197,7 +223,8 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
             filePath: $filePath,
             lineNumber: $lineNumber,
             fallback: $fallback,
-            placeholders: $placeholders
+            placeholders: $placeholders,
+            isPlural: $isPlural
         );
     }
 

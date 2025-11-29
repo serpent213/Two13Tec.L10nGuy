@@ -71,21 +71,7 @@ final class CatalogWriter
             $updated = false;
 
             foreach ($group as $mutation) {
-                if ($mutation->identifier === '' || isset($units[$mutation->identifier])) {
-                    continue;
-                }
-                $units[$mutation->identifier] = [
-                    'source' => $mutation->source,
-                    'target' => $writeTarget ? $mutation->target : null,
-                    'state' => $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
-                    'attributes' => [],
-                    'sourceAttributes' => [],
-                    'targetAttributes' => [],
-                    'children' => [],
-                    'hasSource' => true,
-                    'hasTarget' => $writeTarget && $mutation->target !== null && $mutation->target !== '',
-                ];
-                $updated = true;
+                $updated = $this->applyMutation($units, $mutation, $writeTarget) || $updated;
             }
 
             if (!$updated) {
@@ -141,6 +127,27 @@ final class CatalogWriter
             $updated = false;
 
             foreach ($groupEntries as $entry) {
+                $plural = $this->parsePluralIdentifier($entry->identifier);
+                if ($plural !== null) {
+                    $baseId = $plural['base'];
+                    $formIndex = $plural['index'];
+                    if (isset($units[$baseId]) && ($units[$baseId]['type'] ?? '') === 'plural') {
+                        if (isset($units[$baseId]['forms'][$formIndex])) {
+                            unset($units[$baseId]['forms'][$formIndex]);
+                            $units[$baseId]['children'] = array_values(
+                                array_filter(
+                                    $units[$baseId]['children'] ?? [],
+                                    static fn (array $child): bool => ($child['identifier'] ?? null) !== $entry->identifier
+                                )
+                            );
+                            if ($units[$baseId]['forms'] === []) {
+                                unset($units[$baseId]);
+                            }
+                            $updated = true;
+                        }
+                        continue;
+                    }
+                }
                 if (!isset($units[$entry->identifier])) {
                     continue;
                 }
@@ -173,6 +180,7 @@ final class CatalogWriter
      *
      * @param array<string, mixed> $metadata
      * @param array<string, array{
+     *     type: 'single',
      *     source: ?string,
      *     target: ?string,
      *     state: ?string,
@@ -180,6 +188,23 @@ final class CatalogWriter
      *     sourceAttributes?: array<string, string>,
      *     targetAttributes?: array<string, string>,
      *     children?: list<array{type: string, xml?: string}>
+     * }|array{
+     *     type: 'plural',
+     *     restype?: string,
+     *     attributes?: array<string, string>,
+     *     forms: array<int, array{
+     *         id?: string,
+     *         source: ?string,
+     *         target: ?string,
+     *         state: ?string,
+     *         attributes?: array<string, string>,
+     *         sourceAttributes?: array<string, string>,
+     *         targetAttributes?: array<string, string>,
+     *         children?: list<array{type: string, xml?: string}>,
+     *         hasSource?: bool,
+     *         hasTarget?: bool
+     *     }>,
+     *     children?: list<array{type: 'form', identifier: string, index: int}|array{type: 'unknown', xml: string}>
      * }> $units
      * @return bool True when the catalog already matched the canonical format
      */
@@ -207,6 +232,96 @@ final class CatalogWriter
         $this->persistCatalog($filePath, $xml);
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $units
+     */
+    private function applyMutation(array &$units, CatalogMutation $mutation, bool $writeTarget): bool
+    {
+        $identifier = $mutation->identifier;
+        if ($identifier === '') {
+            return false;
+        }
+
+        $plural = $this->parsePluralIdentifier($identifier);
+        if ($plural !== null) {
+            $baseId = $plural['base'];
+            $formIndex = $plural['index'];
+            if (!isset($units[$baseId])) {
+                $units[$baseId] = [
+                    'type' => 'plural',
+                    'restype' => 'x-gettext-plurals',
+                    'attributes' => [],
+                    'forms' => [],
+                    'children' => [],
+                ];
+            }
+            if (($units[$baseId]['type'] ?? '') !== 'plural') {
+                return false;
+            }
+            if (isset($units[$baseId]['forms'][$formIndex])) {
+                return false;
+            }
+
+            $units[$baseId]['forms'][$formIndex] = $this->buildUnitFromMutation($mutation, $writeTarget, $identifier);
+            $units[$baseId]['children'] ??= [];
+            $units[$baseId]['children'][] = [
+                'type' => 'form',
+                'identifier' => $identifier,
+                'index' => $formIndex,
+            ];
+            ksort($units[$baseId]['forms'], SORT_NUMERIC);
+
+            return true;
+        }
+
+        if (isset($units[$identifier]) && ($units[$identifier]['type'] ?? 'single') === 'plural') {
+            $formIdentifier = $identifier . '[0]';
+            if (isset($units[$identifier]['forms'][0])) {
+                return false;
+            }
+            $units[$identifier]['forms'][0] = $this->buildUnitFromMutation($mutation, $writeTarget, $formIdentifier);
+            $units[$identifier]['children'] ??= [];
+            $units[$identifier]['children'][] = [
+                'type' => 'form',
+                'identifier' => $formIdentifier,
+                'index' => 0,
+            ];
+            ksort($units[$identifier]['forms'], SORT_NUMERIC);
+
+            return true;
+        }
+
+        if (isset($units[$identifier])) {
+            return false;
+        }
+
+        $units[$identifier] = array_merge(
+            ['type' => 'single'],
+            $this->buildUnitFromMutation($mutation, $writeTarget, $identifier)
+        );
+
+        return true;
+    }
+
+    private function buildUnitFromMutation(CatalogMutation $mutation, bool $writeTarget, string $identifier): array
+    {
+        $target = $writeTarget ? $mutation->target : null;
+        $hasTarget = $writeTarget && $mutation->target !== null && $mutation->target !== '';
+
+        return [
+            'id' => $identifier,
+            'source' => $mutation->source,
+            'target' => $target,
+            'state' => $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
+            'attributes' => [],
+            'sourceAttributes' => [],
+            'targetAttributes' => [],
+            'children' => [],
+            'hasSource' => true,
+            'hasTarget' => $hasTarget,
+        ];
     }
 
     /**
@@ -286,6 +401,7 @@ final class CatalogWriter
 
     /**
      * @param array<string, array{
+     *     type: 'single',
      *     source: ?string,
      *     target: ?string,
      *     state: ?string,
@@ -293,6 +409,23 @@ final class CatalogWriter
      *     sourceAttributes?: array<string, string>,
      *     targetAttributes?: array<string, string>,
      *     children?: list<array{type: string, xml?: string}>
+     * }|array{
+     *     type: 'plural',
+     *     restype?: string,
+     *     attributes?: array<string, string>,
+     *     forms: array<int, array{
+     *         id?: string,
+     *         source: ?string,
+     *         target: ?string,
+     *         state: ?string,
+     *         attributes?: array<string, string>,
+     *         sourceAttributes?: array<string, string>,
+     *         targetAttributes?: array<string, string>,
+     *         children?: list<array{type: string, xml?: string}>,
+     *         hasSource?: bool,
+     *         hasTarget?: bool
+     *     }>,
+     *     children?: list<array{type: 'form', identifier: string, index: int}|array{type: 'unknown', xml: string}>
      * }> $units
      * @param array<string, mixed> $structure
      */
@@ -304,6 +437,7 @@ final class CatalogWriter
 
     /**
      * @param array<string, array{
+     *     type: 'single',
      *     source: ?string,
      *     target: ?string,
      *     state: ?string,
@@ -311,11 +445,28 @@ final class CatalogWriter
      *     sourceAttributes?: array<string, string>,
      *     targetAttributes?: array<string, string>,
      *     children?: list<array{type: string, xml?: string}>
+     * }|array{
+     *     type: 'plural',
+     *     restype?: string,
+     *     attributes?: array<string, string>,
+     *     forms: array<int, array{
+     *         id?: string,
+     *         source: ?string,
+     *         target: ?string,
+     *         state: ?string,
+     *         attributes?: array<string, string>,
+     *         sourceAttributes?: array<string, string>,
+     *         targetAttributes?: array<string, string>,
+     *         children?: list<array{type: string, xml?: string}>,
+     *         hasSource?: bool,
+     *         hasTarget?: bool
+     *     }>,
+     *     children?: list<array{type: 'form', identifier: string, index: int}|array{type: 'unknown', xml: string}>
      * }> $units
      * @param array{
      *     fileAttributes?: array<string, string>,
      *     fileChildren?: list<string>,
-     *     bodyOrder?: list<array{type: 'trans-unit', identifier: string}|array{type: 'unknown', xml: string}>
+     *     bodyOrder?: list<array{type: 'trans-unit'|'plural', identifier: string}|array{type: 'unknown', xml: string}>
      * } $structure
      */
     private function renderCatalog(array $metadata, array $units, array $structure): string
@@ -345,10 +496,7 @@ final class CatalogWriter
 
         $sortedUnits = $units;
         ksort($sortedUnits, SORT_NATURAL | SORT_FLAG_CASE);
-        $unitQueue = [];
-        foreach ($sortedUnits as $identifier => $unit) {
-            $unitQueue[] = ['identifier' => $identifier, 'unit' => $unit];
-        }
+        $usedIdentifiers = [];
 
         $bodyOrder = $structure['bodyOrder'] ?? [];
         foreach ($bodyOrder as $element) {
@@ -358,15 +506,22 @@ final class CatalogWriter
                 }
                 continue;
             }
-            if ($unitQueue === []) {
+            if (!isset($element['identifier'])) {
                 continue;
             }
-            $current = array_shift($unitQueue);
-            $lines = array_merge($lines, $this->renderTransUnit($current['identifier'], $current['unit']));
+            $identifier = (string)$element['identifier'];
+            if (!isset($sortedUnits[$identifier])) {
+                continue;
+            }
+            $usedIdentifiers[$identifier] = true;
+            $lines = array_merge($lines, $this->renderUnit($identifier, $sortedUnits[$identifier]));
         }
 
-        foreach ($unitQueue as $remaining) {
-            $lines = array_merge($lines, $this->renderTransUnit($remaining['identifier'], $remaining['unit']));
+        foreach ($sortedUnits as $identifier => $unit) {
+            if (isset($usedIdentifiers[$identifier])) {
+                continue;
+            }
+            $lines = array_merge($lines, $this->renderUnit($identifier, $unit));
         }
 
         $lines[] = $this->indent(2) . '</body>';
@@ -403,13 +558,76 @@ final class CatalogWriter
         return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
     }
 
-    private function renderTransUnit(string $identifier, array $unit): array
+    private function renderUnit(string $identifier, array $unit): array
+    {
+        if (($unit['type'] ?? 'single') === 'plural') {
+            return $this->renderPluralGroup($identifier, $unit);
+        }
+
+        return $this->renderTransUnit($identifier, $unit);
+    }
+
+    private function renderPluralGroup(string $identifier, array $unit): array
+    {
+        $attributes = [
+            'id' => $identifier,
+            'restype' => $unit['restype'] ?? 'x-gettext-plurals',
+        ];
+        $attributes = $this->mergeAttributes($attributes, $unit['attributes'] ?? []);
+
+        $lines = [];
+        $lines[] = sprintf('%s<group %s>', $this->indent(3), $this->formatAttributes($attributes));
+
+        $forms = $unit['forms'] ?? [];
+        ksort($forms, SORT_NUMERIC);
+        $formQueue = [];
+        foreach ($forms as $index => $form) {
+            $formQueue[(int)$index] = $form;
+        }
+
+        $renderedForms = [];
+        foreach ($unit['children'] ?? [] as $child) {
+            if (($child['type'] ?? '') === 'unknown' && isset($child['xml'])) {
+                foreach ($this->indentBlock((string)$child['xml'], 4) as $line) {
+                    $lines[] = $line;
+                }
+                continue;
+            }
+            if (($child['type'] ?? '') !== 'form') {
+                continue;
+            }
+            $index = isset($child['index']) ? (int)$child['index'] : null;
+            if ($index === null || !isset($formQueue[$index])) {
+                continue;
+            }
+            $formIdentifier = $formQueue[$index]['id'] ?? ($identifier . '[' . $index . ']');
+            $lines = array_merge(
+                $lines,
+                $this->renderTransUnit($formIdentifier, $formQueue[$index], 4)
+            );
+            $renderedForms[$index] = true;
+        }
+
+        foreach ($formQueue as $index => $form) {
+            if (isset($renderedForms[$index])) {
+                continue;
+            }
+            $formIdentifier = $form['id'] ?? ($identifier . '[' . $index . ']');
+            $lines = array_merge($lines, $this->renderTransUnit($formIdentifier, $form, 4));
+        }
+
+        $lines[] = $this->indent(3) . '</group>';
+
+        return $lines;
+    }
+
+    private function renderTransUnit(string $identifier, array $unit, int $indentLevel = 3): array
     {
         $attributes = ['id' => $identifier, 'xml:space' => 'preserve'];
         $attributes = $this->mergeAttributes($attributes, $unit['attributes'] ?? []);
 
         $lines = [];
-        $lines[] = sprintf('%s<trans-unit %s>', $this->indent(3), $this->formatAttributes($attributes));
+        $lines[] = sprintf('%s<trans-unit %s>', $this->indent($indentLevel), $this->formatAttributes($attributes));
 
         $children = $unit['children'] ?? [];
         if ($children === []) {
@@ -425,7 +643,7 @@ final class CatalogWriter
                 $sourceAttributes = $unit['sourceAttributes'] ?? [];
                 $lines[] = sprintf(
                     '%s<source%s>%s</source>',
-                    $this->indent(4),
+                    $this->indent($indentLevel + 1),
                     $this->formatOptionalAttributes($sourceAttributes),
                     $this->escape($unit['source'] ?? '')
                 );
@@ -444,20 +662,20 @@ final class CatalogWriter
                 $targetAttributes = $this->mergeAttributes($targetAttributes, $unit['targetAttributes'] ?? []);
                 $lines[] = sprintf(
                     '%s<target%s>%s</target>',
-                    $this->indent(4),
+                    $this->indent($indentLevel + 1),
                     $this->formatOptionalAttributes($targetAttributes),
                     $this->escape($target ?? '')
                 );
                 continue;
             }
             if ($type === 'unknown' && isset($child['xml'])) {
-                foreach ($this->indentBlock((string)$child['xml'], 4) as $line) {
+                foreach ($this->indentBlock((string)$child['xml'], $indentLevel + 1) as $line) {
                     $lines[] = $line;
                 }
             }
         }
 
-        $lines[] = $this->indent(3) . '</trans-unit>';
+        $lines[] = $this->indent($indentLevel) . '</trans-unit>';
 
         return $lines;
     }
@@ -485,6 +703,19 @@ final class CatalogWriter
         }
 
         return ' ' . $this->formatAttributes($attributes);
+    }
+
+    private function parsePluralIdentifier(string $identifier): ?array
+    {
+        $match = [];
+        if (preg_match('/^(.*)\\[(\\d+)\\]$/', $identifier, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'base' => $match[1],
+            'index' => (int)$match[2],
+        ];
     }
 
     /**

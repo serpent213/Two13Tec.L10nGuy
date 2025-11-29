@@ -25,6 +25,7 @@ final class CatalogFileParser
      * @return array{
      *     meta: array<string, mixed>,
      *     units: array<string, array{
+     *         type: 'single',
      *         source: ?string,
      *         target: ?string,
      *         state: ?string,
@@ -34,10 +35,27 @@ final class CatalogFileParser
      *         children: list<array{type: 'source'|'target'|'unknown', xml?: string}>,
      *         hasSource: bool,
      *         hasTarget: bool
+     *     }|array{
+     *         type: 'plural',
+     *         restype: string,
+     *         attributes: array<string, string>,
+     *         forms: array<int, array{
+     *             id: string,
+     *             source: ?string,
+     *             target: ?string,
+     *             state: ?string,
+     *             attributes: array<string, string>,
+     *             sourceAttributes: array<string, string>,
+     *             targetAttributes: array<string, string>,
+     *             children: list<array{type: 'source'|'target'|'unknown', xml?: string}>,
+     *             hasSource: bool,
+     *             hasTarget: bool
+     *         }>,
+     *         children: list<array{type: 'form', identifier: string, index: int}|array{type: 'unknown', xml: string}>
      *     }>,
      *     fileAttributes: array<string, string>,
      *     fileChildren: list<string>,
-     *     bodyOrder: list<array{type: 'trans-unit', identifier: string}|array{type: 'unknown', xml: string}>
+     *     bodyOrder: list<array{type: 'trans-unit'|'plural', identifier: string}|array{type: 'unknown', xml: string}>
      * }
      */
     public static function parse(string $filePath): array
@@ -112,57 +130,63 @@ final class CatalogFileParser
                     continue;
                 }
 
+                if ($bodyNode->getName() === 'group' && ((string)($bodyNode['restype'] ?? '')) === 'x-gettext-plurals') {
+                    $groupIdentifier = isset($bodyNode['id']) ? (string)$bodyNode['id'] : null;
+                    $groupAttributes = self::collectUnknownAttributes($bodyNode, ['id', 'restype']);
+                    $forms = [];
+                    $groupChildren = [];
+
+                    foreach ($bodyNode->children() as $child) {
+                        if (!$child instanceof \SimpleXMLElement) {
+                            continue;
+                        }
+                        if ($child->getName() !== 'trans-unit' || !isset($child['id'])) {
+                            $groupChildren[] = ['type' => 'unknown', 'xml' => self::exportNode($child)];
+                            continue;
+                        }
+
+                        $formId = (string)$child['id'];
+                        $index = self::pluralFormIndex($formId);
+                        if ($index === null) {
+                            $groupChildren[] = ['type' => 'unknown', 'xml' => self::exportNode($child)];
+                            continue;
+                        }
+
+                        $groupIdentifier ??= self::pluralBaseIdentifier($formId);
+                        $forms[$index] = array_merge(
+                            ['id' => $formId],
+                            self::parseTransUnitNode($child)
+                        );
+                        $groupChildren[] = ['type' => 'form', 'identifier' => $formId, 'index' => $index];
+                    }
+
+                    if ($groupIdentifier === null) {
+                        $bodyOrder[] = ['type' => 'unknown', 'xml' => self::exportNode($bodyNode)];
+                        continue;
+                    }
+
+                    ksort($forms, SORT_NUMERIC);
+                    $units[$groupIdentifier] = [
+                        'type' => 'plural',
+                        'restype' => (string)($bodyNode['restype'] ?? 'x-gettext-plurals'),
+                        'attributes' => $groupAttributes,
+                        'forms' => $forms,
+                        'children' => $groupChildren,
+                    ];
+                    $bodyOrder[] = ['type' => 'plural', 'identifier' => $groupIdentifier];
+                    continue;
+                }
+
                 if ($bodyNode->getName() !== 'trans-unit' || !isset($bodyNode['id'])) {
                     $bodyOrder[] = ['type' => 'unknown', 'xml' => self::exportNode($bodyNode)];
                     continue;
                 }
 
                 $identifier = (string)$bodyNode['id'];
-                $unitAttributes = self::collectUnknownAttributes($bodyNode, ['id', 'xml:space']);
-                $unitChildren = [];
-                $sourceAttributes = [];
-                $targetAttributes = [];
-                $source = null;
-                $target = null;
-                $state = null;
-                $hasSource = false;
-                $hasTarget = false;
-
-                foreach ($bodyNode->children() as $child) {
-                    if (!$child instanceof \SimpleXMLElement) {
-                        continue;
-                    }
-                    $childName = $child->getName();
-                    if ($childName === 'source') {
-                        $hasSource = true;
-                        $source = (string)$child;
-                        $sourceAttributes = self::collectUnknownAttributes($child, []);
-                        $unitChildren[] = ['type' => 'source'];
-                        continue;
-                    }
-                    if ($childName === 'target') {
-                        $hasTarget = true;
-                        $target = (string)$child;
-                        $state = isset($child['state']) ? (string)$child['state'] : null;
-                        $targetAttributes = self::collectUnknownAttributes($child, ['state']);
-                        $unitChildren[] = ['type' => 'target'];
-                        continue;
-                    }
-
-                    $unitChildren[] = ['type' => 'unknown', 'xml' => self::exportNode($child)];
-                }
-
-                $units[$identifier] = [
-                    'source' => $source,
-                    'target' => $target,
-                    'state' => $state,
-                    'attributes' => $unitAttributes,
-                    'sourceAttributes' => $sourceAttributes,
-                    'targetAttributes' => $targetAttributes,
-                    'children' => $unitChildren,
-                    'hasSource' => $hasSource,
-                    'hasTarget' => $hasTarget,
-                ];
+                $units[$identifier] = array_merge(
+                    ['type' => 'single'],
+                    self::parseTransUnitNode($bodyNode)
+                );
                 $bodyOrder[] = ['type' => 'trans-unit', 'identifier' => $identifier];
             }
         }
@@ -175,8 +199,90 @@ final class CatalogFileParser
             'units' => $units,
             'fileAttributes' => $fileAttributes,
             'fileChildren' => $fileChildren,
-            'bodyOrder' => $bodyOrder,
+        'bodyOrder' => $bodyOrder,
         ];
+    }
+
+    /**
+     * @return array{
+     *     source: ?string,
+     *     target: ?string,
+     *     state: ?string,
+     *     attributes: array<string, string>,
+     *     sourceAttributes: array<string, string>,
+     *     targetAttributes: array<string, string>,
+     *     children: list<array{type: 'source'|'target'|'unknown', xml?: string}>,
+     *     hasSource: bool,
+     *     hasTarget: bool
+     * }
+     */
+    private static function parseTransUnitNode(\SimpleXMLElement $bodyNode): array
+    {
+        $unitAttributes = self::collectUnknownAttributes($bodyNode, ['id', 'xml:space']);
+        $unitChildren = [];
+        $sourceAttributes = [];
+        $targetAttributes = [];
+        $source = null;
+        $target = null;
+        $state = null;
+        $hasSource = false;
+        $hasTarget = false;
+
+        foreach ($bodyNode->children() as $child) {
+            if (!$child instanceof \SimpleXMLElement) {
+                continue;
+            }
+            $childName = $child->getName();
+            if ($childName === 'source') {
+                $hasSource = true;
+                $source = (string)$child;
+                $sourceAttributes = self::collectUnknownAttributes($child, []);
+                $unitChildren[] = ['type' => 'source'];
+                continue;
+            }
+            if ($childName === 'target') {
+                $hasTarget = true;
+                $target = (string)$child;
+                $state = isset($child['state']) ? (string)$child['state'] : null;
+                $targetAttributes = self::collectUnknownAttributes($child, ['state']);
+                $unitChildren[] = ['type' => 'target'];
+                continue;
+            }
+
+            $unitChildren[] = ['type' => 'unknown', 'xml' => self::exportNode($child)];
+        }
+
+        return [
+            'source' => $source,
+            'target' => $target,
+            'state' => $state,
+            'attributes' => $unitAttributes,
+            'sourceAttributes' => $sourceAttributes,
+            'targetAttributes' => $targetAttributes,
+            'children' => $unitChildren,
+            'hasSource' => $hasSource,
+            'hasTarget' => $hasTarget,
+        ];
+    }
+
+    private static function pluralFormIndex(string $identifier): ?int
+    {
+        $match = [];
+        if (preg_match('/^.+\\[(\\d+)\\]$/', $identifier, $match) !== 1) {
+            return null;
+        }
+
+        return (int)$match[1];
+    }
+
+    private static function pluralBaseIdentifier(string $identifier): ?string
+    {
+        $position = strrpos($identifier, '[');
+        if ($position === false) {
+            return null;
+        }
+
+        return substr($identifier, 0, $position) ?: null;
     }
 
     /**

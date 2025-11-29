@@ -60,6 +60,31 @@ final class FusionReferenceCollectorTest extends TestCase
         self::assertSame('NodeTypes.AssetList', $fluent->sourceName);
     }
 
+    /**
+     * @test
+     */
+    public function detectsPluralInvocation(): void
+    {
+        $filePath = sys_get_temp_dir() . '/plural_' . bin2hex(random_bytes(4)) . '.fusion';
+        $contents = <<<'FUSION'
+prototype(Test.Plural) {
+    label = I18n.plural('items.count', 'One item', {count: count}, 'Presentation.Cards', 'Two13Tec.Senegal')
+}
+FUSION;
+        file_put_contents($filePath, $contents);
+
+        try {
+            $file = new \SplFileInfo($filePath);
+            $references = $this->collector->collect($file);
+
+            self::assertCount(1, $references);
+            self::assertTrue($references[0]->isPlural);
+            self::assertSame('items.count', $references[0]->identifier);
+        } finally {
+            @unlink($filePath);
+        }
+    }
+
     private function fixturePath(string $relative): string
     {
         return FLOW_PATH_ROOT . 'DistributionPackages/Two13Tec.L10nGuy/Tests/Fixtures/SenegalBaseline/' . $relative;

@@ -151,8 +151,22 @@ XML;
         self::assertCount(1, $parsed['fileChildren']);
         self::assertStringContainsString('<phase-group custom="true"><phase/></phase-group>', $parsed['fileChildren'][0]);
         self::assertCount(2, $parsed['bodyOrder']);
-        self::assertSame('unknown', $parsed['bodyOrder'][0]['type']);
+        self::assertSame('plural', $parsed['bodyOrder'][0]['type']);
+        self::assertSame('contentcollection.label', $parsed['bodyOrder'][0]['identifier']);
         self::assertSame('trans-unit', $parsed['bodyOrder'][1]['type']);
+        self::assertSame('simple', $parsed['bodyOrder'][1]['identifier']);
+        $plural = $parsed['units']['contentcollection.label'];
+        self::assertSame('plural', $plural['type']);
+        self::assertSame('x-gettext-plurals', $plural['restype']);
+        self::assertArrayHasKey(0, $plural['forms']);
+        self::assertSame('contentcollection.label[0]', $plural['forms'][0]['id']);
+        self::assertSame('One', $plural['forms'][0]['source']);
+        self::assertSame(
+            [
+                ['type' => 'form', 'identifier' => 'contentcollection.label[0]', 'index' => 0],
+            ],
+            $plural['children']
+        );
         self::assertSame(['data-foo' => 'bar'], $parsed['units']['simple']['attributes']);
         self::assertSame(['suffix' => '!', 'xml:lang' => 'en'], $parsed['units']['simple']['sourceAttributes']);
         self::assertSame(['reviewer' => 'demo'], $parsed['units']['simple']['targetAttributes']);
