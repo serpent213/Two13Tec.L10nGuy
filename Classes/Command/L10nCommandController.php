@@ -419,7 +419,14 @@ class L10nCommandController extends CommandController
     {
         $mutations = [];
         foreach ($scanResult->missingTranslations as $missing) {
-            $fallback = $missing->reference->fallback ?? $missing->identifier;
+            $fallback = $missing->reference->fallback;
+            if ($fallback === null || $fallback === '') {
+                $fallback = $this->fallbackWithPlaceholderHints(
+                    $missing->identifier,
+                    $missing->reference->placeholders
+                );
+            }
+
             $mutations[] = new CatalogMutation(
                 locale: $missing->locale,
                 packageKey: $missing->packageKey,
@@ -431,6 +438,23 @@ class L10nCommandController extends CommandController
         }
 
         return $mutations;
+    }
+
+    /**
+     * @param array<string, string> $placeholderMap
+     */
+    private function fallbackWithPlaceholderHints(string $identifier, array $placeholderMap): string
+    {
+        if ($placeholderMap === []) {
+            return $identifier;
+        }
+
+        $placeholders = array_map(
+            static fn (string $name): string => sprintf('{%s}', $name),
+            array_keys($placeholderMap)
+        );
+
+        return trim($identifier . ' ' . implode(' ', $placeholders));
     }
 
     private function resolveScanExitCode(ScanResult $scanResult): int
