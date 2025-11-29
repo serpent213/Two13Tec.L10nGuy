@@ -1,6 +1,6 @@
 # L10nGuy for Neos CMS
 
-Flow CLI companion that keeps Neos translation catalogs in sync with the actual usage inside Fusion, PHP and YAML sources.
+Flow CLI localisation companion that keeps Neos translation catalogs in sync with the actual usage inside Fusion, PHP and YAML sources.
 
 ## Features
 
@@ -17,18 +17,15 @@ Run the commands from the project root (defaults to `Development` context). Comm
 ```bash
 ./flow l10n:scan \
   --package Two13Tec.Senegal \
-  --path DistributionPackages/Two13Tec.Senegal \
-  --locales de,en \
-  --format table|json
+  --locales de,en
 ```
 
 ```bash
 ./flow l10n:unused \
-  --package Two13Tec.Senegal \
-  --path DistributionPackages/Two13Tec.Senegal \
-  --locales de,en \
-  --format table|json
+  --package Two13Tec.Senegal
 ```
+
+(Locales will be auto-detected by default, see [Configuration](#configuration) for details.)
 
 - `./flow l10n:format --check` shares the same filters (`--package`, `--source`, `--path`, `--locales`) and exits non-zero when a catalog would be rewritten (without touching the files). Drop `--check` to re-render the catalogs in place.
 - `--update` for `l10n:scan` creates missing entries via the catalog writer. Without `--update` the command is read-only.
@@ -78,7 +75,7 @@ label = ${Translation.id('button.submit').package('Two13Tec.Senegal').source('Fo
           label: 'i18n'          # Detected as package:NodeTypes.Content.Card:groups.card
 ```
 
-## Configuration presets
+## Configuration
 
 The helper ships sane defaults in [`Configuration/Settings.L10nGuy.yaml`](Configuration/Settings.L10nGuy.yaml). Adjust them to fit your project:
 - Update `Two13Tec.L10nGuy.filePatterns` to add/remove include/exclude globs (e.g., `Resources/Private/Templates/**/*.html`). Disable an existing preset by setting `enabled: false` so future upgrades merge cleanly.
