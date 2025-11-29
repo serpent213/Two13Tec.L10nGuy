@@ -43,8 +43,24 @@ See `docs/llm/flow_i18n_helper.md` for the full implementation brief, data model
 
 ## Configuration presets
 
-The helper ships sane defaults for discovery patterns inside [`Configuration/Settings.Flow.yaml`](Configuration/Settings.Flow.yaml). Adjust them to fit your project:
-- Add new include/exclude patterns under `Two13Tec.L10nGuy.filePatterns` to scan extra paths (e.g., `Resources/Private/Templates/**/*.html`). Disable an existing preset by setting `enabled: false` on the entry instead of deleting it, so future updates remain mergeable.
+The helper ships sane defaults in [`Configuration/Settings.L10nGuy.yaml`](Configuration/Settings.L10nGuy.yaml). Adjust them to fit your project:
+- Update `Two13Tec.L10nGuy.filePatterns` to add/remove include/exclude globs (e.g., `Resources/Private/Templates/**/*.html`). Disable an existing preset by setting `enabled: false` so future upgrades merge cleanly.
+- `Two13Tec.L10nGuy.defaultLocales` lets you pin the locale fallback order without editing Flow’s global `Neos.Flow.i18n` settings. The resolver priority is `--locales` CLI argument → helper `defaultLocales` → `Neos.Flow.i18n.defaultLocale` plus its `fallbackRule.order`, so you can keep Flow’s defaults untouched while giving the helper an opinionated scope.
+- `Two13Tec.L10nGuy.defaultPackages` and `defaultPaths` provide helper-specific fallbacks when the CLI doesn’t pass `--package`/`--path`. For example:
+
+  ```yaml
+  Two13Tec:
+    L10nGuy:
+      defaultPackages:
+        - Acme.Senegal
+        - Partner.Site
+      # Alternatively:
+      # defaultPaths:
+      #   - "DistributionPackages/Acme.Senegal"
+  ```
+
+  With that config `./flow l10n:scan` defaults to the Senegal package but you can still override it via CLI flags.
+- `Two13Tec.L10nGuy.tabWidth` controls how many spaces the catalog writer uses per indentation level (default `2`). Bump it if your team prefers wider XML indentation.
 
 Neos/Flow configuration conventions apply, so you can override these keys per context (`Settings.Development.yaml`, etc.) without touching the distributed defaults.
 

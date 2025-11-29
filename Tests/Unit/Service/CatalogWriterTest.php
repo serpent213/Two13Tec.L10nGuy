@@ -138,6 +138,35 @@ final class CatalogWriterTest extends TestCase
         self::assertSame([$this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf'], $touched);
     }
 
+    /**
+     * @test
+     */
+    public function customTabWidthControlsIndentation(): void
+    {
+        $writer = new CatalogWriter(tabWidth: 4);
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Custom.xlf';
+        $metadata = [
+            'productName' => 'Custom',
+            'sourceLanguage' => 'en',
+            'targetLanguage' => 'de',
+            'original' => '',
+            'datatype' => 'plaintext',
+        ];
+        $units = [
+            'example.identifier' => [
+                'source' => 'Example',
+                'target' => 'Beispiel',
+                'state' => null,
+            ],
+        ];
+
+        $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'de', true);
+
+        $contents = (string)file_get_contents($filePath);
+        self::assertStringContainsString(PHP_EOL . '        <body>' . PHP_EOL, $contents);
+        self::assertStringContainsString(PHP_EOL . '                <source>Example</source>' . PHP_EOL, $contents);
+    }
+
     private function createCatalogIndex(): CatalogIndex
     {
         $index = new CatalogIndex();

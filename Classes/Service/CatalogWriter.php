@@ -28,6 +28,15 @@ use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
  */
 final class CatalogWriter
 {
+    public function __construct(
+        #[Flow\InjectConfiguration(path: 'tabWidth', package: 'Two13Tec.L10nGuy')]
+        protected int $tabWidth = 2
+    ) {
+        if ($this->tabWidth < 0) {
+            $this->tabWidth = 0;
+        }
+    }
+
     /**
      * @param list<CatalogMutation> $mutations
      * @return list<string> Absolute file paths that were touched
@@ -259,21 +268,21 @@ final class CatalogWriter
         $lines = [];
         $lines[] = '<?xml version="1.0" encoding="UTF-8"?>';
         $lines[] = '<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">';
-        $lines[] = '  <file ' . $this->formatAttributes($fileAttributes) . '>';
-        $lines[] = '    <body>';
+        $lines[] = $this->indent(1) . '<file ' . $this->formatAttributes($fileAttributes) . '>';
+        $lines[] = $this->indent(2) . '<body>';
 
         foreach ($units as $identifier => $unit) {
-            $lines[] = sprintf('      <trans-unit id="%s" xml:space="preserve">', $this->escape($identifier));
-            $lines[] = sprintf('        <source>%s</source>', $this->escape($unit['source'] ?? ''));
+            $lines[] = sprintf('%s<trans-unit id="%s" xml:space="preserve">', $this->indent(3), $this->escape($identifier));
+            $lines[] = sprintf('%s<source>%s</source>', $this->indent(4), $this->escape($unit['source'] ?? ''));
             if ($unit['target'] !== null && $unit['target'] !== '') {
                 $targetAttributes = $unit['state'] !== null ? sprintf(' state="%s"', $this->escape($unit['state'])) : '';
-                $lines[] = sprintf('        <target%s>%s</target>', $targetAttributes, $this->escape($unit['target']));
+                $lines[] = sprintf('%s<target%s>%s</target>', $this->indent(4), $targetAttributes, $this->escape($unit['target']));
             }
-            $lines[] = '      </trans-unit>';
+            $lines[] = $this->indent(3) . '</trans-unit>';
         }
 
-        $lines[] = '    </body>';
-        $lines[] = '  </file>';
+        $lines[] = $this->indent(2) . '</body>';
+        $lines[] = $this->indent(1) . '</file>';
         $lines[] = '</xliff>';
 
         return implode(PHP_EOL, $lines) . PHP_EOL;
@@ -290,6 +299,15 @@ final class CatalogWriter
         }
 
         return implode(' ', $parts);
+    }
+
+    private function indent(int $level): string
+    {
+        if ($level <= 0 || $this->tabWidth <= 0) {
+            return '';
+        }
+
+        return str_repeat(' ', $this->tabWidth * $level);
     }
 
     private function escape(string $value): string
