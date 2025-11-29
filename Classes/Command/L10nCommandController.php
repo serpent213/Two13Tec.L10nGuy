@@ -27,6 +27,7 @@ use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Exception\CatalogStructureException;
 use Two13Tec\L10nGuy\Service\CatalogFileParser;
 use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
 use Two13Tec\L10nGuy\Service\CatalogWriter;
@@ -286,10 +287,20 @@ class L10nCommandController extends CommandController
 
         $dirty = [];
         $formatted = [];
+        $unsupported = [];
 
         foreach ($catalogs as $catalog) {
             $filePath = $catalog['path'];
-            $parsed = CatalogFileParser::parse($filePath);
+            try {
+                $parsed = CatalogFileParser::parse($filePath);
+            } catch (CatalogStructureException $exception) {
+                $unsupported[$filePath] = $exception->getMessage();
+                $this->outputLine(
+                    'Skipping catalog with unsupported structures (no changes applied): %s',
+                    [$this->relativePath($filePath)]
+                );
+                continue;
+            }
             $isClean = $this->catalogWriter->reformatCatalog(
                 $filePath,
                 $parsed['meta'],
@@ -313,7 +324,7 @@ class L10nCommandController extends CommandController
         }
 
         if ($checkMode) {
-            if ($dirty === []) {
+            if ($dirty === [] && $unsupported === []) {
                 $this->outputLine('All catalogs already match the canonical format.');
                 return;
             }
@@ -322,7 +333,31 @@ class L10nCommandController extends CommandController
                 $this->outputLine('Catalog requires formatting: %s', [$this->relativePath($file)]);
             }
 
-            $this->quit($this->exitCode(self::EXIT_KEY_DIRTY, $this->exitCode(self::EXIT_KEY_FAILURE, 7)));
+            if ($unsupported !== []) {
+                foreach ($unsupported as $file => $message) {
+                    $this->outputLine(
+                        'Catalog skipped due to unsupported structures: %s',
+                        [$this->relativePath($file)]
+                    );
+                    $this->outputLine('  Reason: %s', [$message]);
+                }
+            }
+
+            $exitCode = $dirty !== []
+                ? $this->exitCode(self::EXIT_KEY_DIRTY, $this->exitCode(self::EXIT_KEY_FAILURE, 7))
+                : $this->exitCode(self::EXIT_KEY_FAILURE, 7);
+            $this->quit($exitCode);
+        }
+
+        if ($unsupported !== []) {
+            foreach ($unsupported as $file => $message) {
+                $this->outputLine(
+                    'Catalog skipped due to unsupported structures: %s',
+                    [$this->relativePath($file)]
+                );
+                $this->outputLine('  Reason: %s', [$message]);
+            }
+            $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
         }
 
         if ($formatted === []) {

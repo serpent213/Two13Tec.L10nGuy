@@ -15,6 +15,7 @@ namespace Two13Tec\L10nGuy\Service;
  */
 
 use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
+use Two13Tec\L10nGuy\Exception\CatalogStructureException;
 
 /**
  * Lightweight XML parser used to inspect catalog metadata and existing units.
@@ -60,6 +61,11 @@ final class CatalogFileParser
 
         $fileElement = $xml->file[0] ?? null;
         if ($fileElement instanceof \SimpleXMLElement) {
+            $groupNodes = $fileElement->xpath('body/group');
+            if (is_array($groupNodes) && $groupNodes !== []) {
+                throw CatalogStructureException::becauseUnsupportedGroupNodes($filePath);
+            }
+
             $meta['productName'] = isset($fileElement['product-name']) ? (string)$fileElement['product-name'] : null;
             $meta['sourceLanguage'] = isset($fileElement['source-language']) ? (string)$fileElement['source-language'] : null;
             $meta['targetLanguage'] = isset($fileElement['target-language']) ? (string)$fileElement['target-language'] : null;

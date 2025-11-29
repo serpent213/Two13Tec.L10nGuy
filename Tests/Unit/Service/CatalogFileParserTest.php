@@ -17,6 +17,7 @@ namespace Two13Tec\L10nGuy\Tests\Unit\Service;
 use Neos\Utility\Files;
 use PHPUnit\Framework\TestCase;
 use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
+use Two13Tec\L10nGuy\Exception\CatalogStructureException;
 use Two13Tec\L10nGuy\Service\CatalogFileParser;
 
 /**
@@ -108,6 +109,34 @@ final class CatalogFileParserTest extends TestCase
 
         $this->expectException(CatalogFileParserException::class);
         $this->expectExceptionMessage('contains malformed XML');
+
+        CatalogFileParser::parse($filePath);
+    }
+
+    /**
+     * @test
+     */
+    public function throwsWhenGroupNodesPresent(): void
+    {
+        $filePath = $this->sandboxPath . '/plural.xlf';
+        $contents = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="" product-name="Test.Package" source-language="en" datatype="plaintext">
+    <body>
+      <group id="contentcollection.label" restype="x-gettext-plurals">
+        <trans-unit id="contentcollection.label[0]" xml:space="preserve">
+          <source>One</source>
+        </trans-unit>
+      </group>
+    </body>
+  </file>
+</xliff>
+XML;
+        file_put_contents($filePath, $contents);
+
+        $this->expectException(CatalogStructureException::class);
+        $this->expectExceptionMessage('group nodes');
 
         CatalogFileParser::parse($filePath);
     }

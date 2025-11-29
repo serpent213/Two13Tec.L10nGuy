@@ -14,7 +14,7 @@ namespace Two13Tec\L10nGuy\Exception;
  * source code.
  */
 
-final class CatalogFileParserException extends \RuntimeException
+class CatalogFileParserException extends \RuntimeException
 {
     public static function becauseUnreadable(string $filePath): self
     {
