@@ -3,6 +3,7 @@
     "type": "neos-package",
     "name": "two13tec/l10nguy",
     "require": {
+        "php": "^8.4",
         "neos/flow": "*",
         "initphp/cli-table": "^1.0"
     },

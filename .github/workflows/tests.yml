@@ -1,0 +1,148 @@
+name: Lint & Tests
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  lint:
+    name: "Lint (PHP ${{ matrix.php }})"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install treefmt
+        run: |
+          curl -sSL https://github.com/numtide/treefmt/releases/download/v2.4.0/treefmt_2.4.0_linux_amd64.tar.gz | tar xz
+          sudo mv treefmt /usr/local/bin/
+
+      - name: Install php-cs-fixer
+        run: composer global require friendsofphp/php-cs-fixer:^3.87
+
+      - name: Install prettier
+        run: npm install -g prettier
+
+      - name: Run lint
+        run: |
+          export PATH="$HOME/.composer/vendor/bin:$PATH"
+          just lint
+        env:
+          XDG_CACHE_HOME: ${{ github.workspace }}/.cache
+
+  test:
+    name: "Test (PHP ${{ matrix.php }})"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4']
+
+    env:
+      FLOW_CONTEXT: Testing
+      NEOS_DIST_FOLDER: neos-distribution
+
+    steps:
+      - name: Checkout package
+        uses: actions/checkout@v4
+        with:
+          path: package
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, xml, json, zlib, iconv, intl, pdo_sqlite
+          ini-values: date.timezone="UTC"
+
+      - name: Checkout Neos distribution
+        uses: actions/checkout@v4
+        with:
+          repository: neos/neos-development-distribution
+          ref: '9.0'
+          path: ${{ env.NEOS_DIST_FOLDER }}
+
+      - name: Link package into distribution
+        run: |
+          mkdir -p ${{ env.NEOS_DIST_FOLDER }}/DistributionPackages
+          cp -r package ${{ env.NEOS_DIST_FOLDER }}/DistributionPackages/Two13Tec.L10nGuy
+
+      - name: Configure composer repository
+        working-directory: ${{ env.NEOS_DIST_FOLDER }}
+        run: |
+          composer config repositories.l10nguy '{ "type": "path", "url": "DistributionPackages/Two13Tec.L10nGuy", "options": { "symlink": true } }'
+          composer require --no-update two13tec/l10nguy:"@dev"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        working-directory: ${{ env.NEOS_DIST_FOLDER }}
+        run: composer update --no-progress --no-interaction
+
+      - name: Configure Flow for SQLite
+        working-directory: ${{ env.NEOS_DIST_FOLDER }}
+        run: |
+          mkdir -p Configuration/Testing
+          cat <<EOF > Configuration/Testing/Settings.yaml
+          Neos:
+            Flow:
+              persistence:
+                backendOptions:
+                  driver: pdo_sqlite
+                  path: '%FLOW_PATH_DATA%Persistent/test.db'
+          EOF
+
+      - name: Run unit tests
+        working-directory: ${{ env.NEOS_DIST_FOLDER }}
+        run: |
+          bin/phpunit \
+            --configuration=Build/BuildEssentials/PhpUnit/UnitTests.xml \
+            --testsuite=Unit \
+            DistributionPackages/Two13Tec.L10nGuy/Tests/Unit
+
+      - name: Run functional tests
+        working-directory: ${{ env.NEOS_DIST_FOLDER }}
+        run: |
+          ./flow doctrine:migrate --quiet || true
+          bin/phpunit \
+            --configuration=Build/BuildEssentials/PhpUnit/FunctionalTests.xml \
+            --testsuite=Functional \
+            DistributionPackages/Two13Tec.L10nGuy/Tests/Functional
+
+  build-status:
+    if: always()
+    runs-on: ubuntu-latest
+    name: Build status
+    needs: [lint, test]
+    steps:
+      - name: Check build matrix status
+        if: ${{ needs.lint.result != 'success' || needs.test.result != 'success' }}
+        run: exit 1

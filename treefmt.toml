@@ -2,7 +2,7 @@
 command = "php-cs-fixer"
 options = [
   "fix",
-  "--config=../../.php-cs-fixer.php",
+  "--config=.php-cs-fixer.php",
   "--allow-risky=yes",
   "--"
 ]
