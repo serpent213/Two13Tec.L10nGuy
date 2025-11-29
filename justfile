@@ -12,10 +12,10 @@ lint:
 	#!/usr/bin/env bash
 	set -euo pipefail
 	treefmt --config-file treefmt.toml --fail-on-change
-	PHP_FILES=$(rg --files -g '*.php' Classes Tests 2>/dev/null || true)
+	PHP_FILES=$(find Classes Tests -name '*.php' -type f 2>/dev/null || true)
 	if [ -z "$PHP_FILES" ]; then
 	  echo "No PHP files detected for linting."
-	  exit 0
+	  exit 1
 	fi
 	printf '%s\n' "$PHP_FILES" | xargs -r -n1 php -l >/dev/null
 	if [ -f phpstan.neon ]; then
@@ -34,6 +34,7 @@ test:
 	    DistributionPackages/Two13Tec.L10nGuy/Tests/Unit)
 	else
 	  echo "No unit tests defined for Two13Tec.L10nGuy."
+	  exit 1
 	fi
 	if [ -d Tests/Functional ]; then
 	  (cd ../.. && FLOW_CONTEXT=Testing ./bin/phpunit \
@@ -42,4 +43,5 @@ test:
 	    DistributionPackages/Two13Tec.L10nGuy/Tests/Functional)
 	else
 	  echo "No functional tests defined for Two13Tec.L10nGuy."
+	  exit 1
 	fi

@@ -46,6 +46,7 @@ jobs:
       - name: Run lint
         run: |
           export PATH="$HOME/.composer/vendor/bin:$PATH"
+          treefmt --clear-cache
           just lint
         env:
           XDG_CACHE_HOME: ${{ github.workspace }}/.cache
