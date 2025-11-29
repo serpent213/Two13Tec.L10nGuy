@@ -266,6 +266,64 @@ final class CatalogWriterTest extends TestCase
         }
     }
 
+    /**
+     * @test
+     */
+    public function reformatKeepsUnknownElementsAndAttributes(): void
+    {
+        $writer = new CatalogWriter();
+        $filePath = $this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Unknown.xlf';
+        $contents = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="" product-name="Test.Package" source-language="en" datatype="plaintext" custom-file="keep">
+    <header><meta keep="yes"/></header>
+    <body>
+      <group id="plural" custom="true">
+        <trans-unit id="plural[0]" xml:space="preserve">
+          <source>One</source>
+        </trans-unit>
+      </group>
+      <trans-unit id="simple" xml:space="preserve" data-foo="bar">
+        <source xml:lang="en" suffix="!">Text</source>
+        <note priority="1">Meta</note>
+        <target state="translated" reviewer="demo">Text</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+XML;
+        Files::createDirectoryRecursively(dirname($filePath));
+        file_put_contents($filePath, $contents);
+
+        $parsed = CatalogFileParser::parse($filePath);
+        $writer->reformatCatalog(
+            $filePath,
+            $parsed['meta'],
+            $parsed['units'],
+            'Two13Tec.Senegal',
+            'en',
+            true,
+            [
+                'fileAttributes' => $parsed['fileAttributes'],
+                'fileChildren' => $parsed['fileChildren'],
+                'bodyOrder' => $parsed['bodyOrder'],
+            ]
+        );
+
+        $output = (string)file_get_contents($filePath);
+        self::assertStringContainsString('custom-file="keep"', $output);
+        self::assertStringContainsString('<header><meta keep="yes"/></header>', $output);
+        self::assertStringContainsString('<group id="plural" custom="true">', $output);
+        self::assertStringContainsString('<note priority="1">Meta</note>', $output);
+        self::assertStringContainsString('<target state="translated" reviewer="demo">Text</target>', $output);
+        self::assertLessThan(
+            strpos($output, '<trans-unit id="simple"'),
+            strpos($output, '<group id="plural"'),
+            'Unknown group should be emitted before sorted trans-units.'
+        );
+    }
+
     private function createCatalogIndex(): CatalogIndex
     {
         $index = new CatalogIndex();

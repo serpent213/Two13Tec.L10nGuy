@@ -17,7 +17,6 @@ namespace Two13Tec\L10nGuy\Tests\Unit\Service;
 use Neos\Utility\Files;
 use PHPUnit\Framework\TestCase;
 use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
-use Two13Tec\L10nGuy\Exception\CatalogStructureException;
 use Two13Tec\L10nGuy\Service\CatalogFileParser;
 
 /**
@@ -61,6 +60,9 @@ final class CatalogFileParserTest extends TestCase
                     'datatype' => null,
                 ],
                 'units' => [],
+                'fileAttributes' => [],
+                'fileChildren' => [],
+                'bodyOrder' => [],
             ],
             $result
         );
@@ -116,28 +118,51 @@ final class CatalogFileParserTest extends TestCase
     /**
      * @test
      */
-    public function throwsWhenGroupNodesPresent(): void
+    public function preservesUnknownElementsAndAttributes(): void
     {
         $filePath = $this->sandboxPath . '/plural.xlf';
         $contents = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
-  <file original="" product-name="Test.Package" source-language="en" datatype="plaintext">
+  <file original="" product-name="Test.Package" source-language="en" datatype="plaintext" extra-file="keep">
+    <header>
+      <phase-group custom="true"><phase/></phase-group>
+    </header>
     <body>
       <group id="contentcollection.label" restype="x-gettext-plurals">
         <trans-unit id="contentcollection.label[0]" xml:space="preserve">
           <source>One</source>
         </trans-unit>
       </group>
+      <trans-unit id="simple" xml:space="preserve" data-foo="bar">
+        <source xml:lang="en" suffix="!">Text</source>
+        <note priority="1">Meta</note>
+        <target state="translated" reviewer="demo">Text</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>
 XML;
         file_put_contents($filePath, $contents);
 
-        $this->expectException(CatalogStructureException::class);
-        $this->expectExceptionMessage('group nodes');
+        $parsed = CatalogFileParser::parse($filePath);
 
-        CatalogFileParser::parse($filePath);
+        self::assertSame(['extra-file' => 'keep'], $parsed['fileAttributes']);
+        self::assertCount(1, $parsed['fileChildren']);
+        self::assertStringContainsString('<phase-group custom="true"><phase/></phase-group>', $parsed['fileChildren'][0]);
+        self::assertCount(2, $parsed['bodyOrder']);
+        self::assertSame('unknown', $parsed['bodyOrder'][0]['type']);
+        self::assertSame('trans-unit', $parsed['bodyOrder'][1]['type']);
+        self::assertSame(['data-foo' => 'bar'], $parsed['units']['simple']['attributes']);
+        self::assertSame(['suffix' => '!', 'xml:lang' => 'en'], $parsed['units']['simple']['sourceAttributes']);
+        self::assertSame(['reviewer' => 'demo'], $parsed['units']['simple']['targetAttributes']);
+        self::assertSame(
+            [
+                ['type' => 'source'],
+                ['type' => 'unknown', 'xml' => '<note priority="1">Meta</note>'],
+                ['type' => 'target'],
+            ],
+            $parsed['units']['simple']['children']
+        );
     }
 }

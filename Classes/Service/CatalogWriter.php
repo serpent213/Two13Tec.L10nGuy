@@ -63,6 +63,11 @@ final class CatalogWriter
             $metadata = $this->resolveMetadata($parsed['meta'], $packageKey, $locale);
             $writeTarget = $this->shouldWriteTarget($metadata, $locale);
             $units = $parsed['units'];
+            $structure = [
+                'fileAttributes' => $parsed['fileAttributes'] ?? [],
+                'fileChildren' => $parsed['fileChildren'] ?? [],
+                'bodyOrder' => $parsed['bodyOrder'] ?? [],
+            ];
             $updated = false;
 
             foreach ($group as $mutation) {
@@ -73,6 +78,12 @@ final class CatalogWriter
                     'source' => $mutation->source,
                     'target' => $writeTarget ? $mutation->target : null,
                     'state' => $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
+                    'attributes' => [],
+                    'sourceAttributes' => [],
+                    'targetAttributes' => [],
+                    'children' => [],
+                    'hasSource' => true,
+                    'hasTarget' => $writeTarget && $mutation->target !== null && $mutation->target !== '',
                 ];
                 $updated = true;
             }
@@ -88,7 +99,7 @@ final class CatalogWriter
                 continue;
             }
 
-            $this->writeCatalogFile($filePath, $metadata, $units);
+            $this->writeCatalogFile($filePath, $metadata, $units, $structure);
             $touched[] = $filePath;
         }
 
@@ -122,6 +133,11 @@ final class CatalogWriter
                 $groupEntries[0]->packageKey,
                 $groupEntries[0]->locale
             );
+            $structure = [
+                'fileAttributes' => $parsed['fileAttributes'] ?? [],
+                'fileChildren' => $parsed['fileChildren'] ?? [],
+                'bodyOrder' => $parsed['bodyOrder'] ?? [],
+            ];
             $updated = false;
 
             foreach ($groupEntries as $entry) {
@@ -145,7 +161,7 @@ final class CatalogWriter
                 continue;
             }
 
-            $this->writeCatalogFile($filePath, $metadata, $units);
+            $this->writeCatalogFile($filePath, $metadata, $units, $structure);
             $touched[] = $filePath;
         }
 
@@ -156,7 +172,15 @@ final class CatalogWriter
      * Re-render an existing catalog with deterministic formatting.
      *
      * @param array<string, mixed> $metadata
-     * @param array<string, array{source: ?string, target: ?string, state: ?string}> $units
+     * @param array<string, array{
+     *     source: ?string,
+     *     target: ?string,
+     *     state: ?string,
+     *     attributes?: array<string, string>,
+     *     sourceAttributes?: array<string, string>,
+     *     targetAttributes?: array<string, string>,
+     *     children?: list<array{type: string, xml?: string}>
+     * }> $units
      * @return bool True when the catalog already matched the canonical format
      */
     public function reformatCatalog(
@@ -165,10 +189,11 @@ final class CatalogWriter
         array $units,
         string $packageKey,
         string $locale,
-        bool $applyChanges = true
+        bool $applyChanges = true,
+        array $structure = []
     ): bool {
         $resolvedMetadata = $this->resolveMetadata($metadata, $packageKey, $locale);
-        $xml = $this->renderCatalog($resolvedMetadata, $units);
+        $xml = $this->renderCatalog($resolvedMetadata, $units, $structure);
         $currentContents = is_file($filePath) ? (string)file_get_contents($filePath) : '';
 
         if ($xml === $currentContents) {
@@ -260,18 +285,40 @@ final class CatalogWriter
     }
 
     /**
-     * @param array<string, array{source: ?string, target: ?string, state: ?string}> $units
+     * @param array<string, array{
+     *     source: ?string,
+     *     target: ?string,
+     *     state: ?string,
+     *     attributes?: array<string, string>,
+     *     sourceAttributes?: array<string, string>,
+     *     targetAttributes?: array<string, string>,
+     *     children?: list<array{type: string, xml?: string}>
+     * }> $units
+     * @param array<string, mixed> $structure
      */
-    private function writeCatalogFile(string $filePath, array $metadata, array $units): void
+    private function writeCatalogFile(string $filePath, array $metadata, array $units, array $structure): void
     {
-        $xml = $this->renderCatalog($metadata, $units);
+        $xml = $this->renderCatalog($metadata, $units, $structure);
         $this->persistCatalog($filePath, $xml);
     }
 
     /**
-     * @param array<string, array{source: ?string, target: ?string, state: ?string}> $units
+     * @param array<string, array{
+     *     source: ?string,
+     *     target: ?string,
+     *     state: ?string,
+     *     attributes?: array<string, string>,
+     *     sourceAttributes?: array<string, string>,
+     *     targetAttributes?: array<string, string>,
+     *     children?: list<array{type: string, xml?: string}>
+     * }> $units
+     * @param array{
+     *     fileAttributes?: array<string, string>,
+     *     fileChildren?: list<string>,
+     *     bodyOrder?: list<array{type: 'trans-unit', identifier: string}|array{type: 'unknown', xml: string}>
+     * } $structure
      */
-    private function renderCatalog(array $metadata, array $units): string
+    private function renderCatalog(array $metadata, array $units, array $structure): string
     {
         $fileAttributes = [
             'original' => $metadata['original'] ?? '',
@@ -283,21 +330,43 @@ final class CatalogWriter
         if ($targetLanguage !== null && $targetLanguage !== '') {
             $fileAttributes['target-language'] = $targetLanguage;
         }
+        $fileAttributes = $this->mergeAttributes($fileAttributes, $structure['fileAttributes'] ?? []);
 
         $lines = [];
         $lines[] = '<?xml version="1.0" encoding="UTF-8"?>';
         $lines[] = '<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">';
         $lines[] = $this->indent(1) . '<file ' . $this->formatAttributes($fileAttributes) . '>';
+        foreach ($structure['fileChildren'] ?? [] as $childXml) {
+            foreach ($this->indentBlock($childXml, 2) as $childLine) {
+                $lines[] = $childLine;
+            }
+        }
         $lines[] = $this->indent(2) . '<body>';
 
-        foreach ($units as $identifier => $unit) {
-            $lines[] = sprintf('%s<trans-unit id="%s" xml:space="preserve">', $this->indent(3), $this->escape($identifier));
-            $lines[] = sprintf('%s<source>%s</source>', $this->indent(4), $this->escape($unit['source'] ?? ''));
-            if ($unit['target'] !== null && $unit['target'] !== '') {
-                $targetAttributes = $unit['state'] !== null ? sprintf(' state="%s"', $this->escape($unit['state'])) : '';
-                $lines[] = sprintf('%s<target%s>%s</target>', $this->indent(4), $targetAttributes, $this->escape($unit['target']));
+        $sortedUnits = $units;
+        ksort($sortedUnits, SORT_NATURAL | SORT_FLAG_CASE);
+        $unitQueue = [];
+        foreach ($sortedUnits as $identifier => $unit) {
+            $unitQueue[] = ['identifier' => $identifier, 'unit' => $unit];
+        }
+
+        $bodyOrder = $structure['bodyOrder'] ?? [];
+        foreach ($bodyOrder as $element) {
+            if (($element['type'] ?? '') === 'unknown' && isset($element['xml'])) {
+                foreach ($this->indentBlock((string)$element['xml'], 3) as $line) {
+                    $lines[] = $line;
+                }
+                continue;
             }
-            $lines[] = $this->indent(3) . '</trans-unit>';
+            if ($unitQueue === []) {
+                continue;
+            }
+            $current = array_shift($unitQueue);
+            $lines = array_merge($lines, $this->renderTransUnit($current['identifier'], $current['unit']));
+        }
+
+        foreach ($unitQueue as $remaining) {
+            $lines = array_merge($lines, $this->renderTransUnit($remaining['identifier'], $remaining['unit']));
         }
 
         $lines[] = $this->indent(2) . '</body>';
@@ -332,6 +401,124 @@ final class CatalogWriter
     private function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+    }
+
+    private function renderTransUnit(string $identifier, array $unit): array
+    {
+        $attributes = ['id' => $identifier, 'xml:space' => 'preserve'];
+        $attributes = $this->mergeAttributes($attributes, $unit['attributes'] ?? []);
+
+        $lines = [];
+        $lines[] = sprintf('%s<trans-unit %s>', $this->indent(3), $this->formatAttributes($attributes));
+
+        $children = $unit['children'] ?? [];
+        if ($children === []) {
+            $children[] = ['type' => 'source'];
+            if (($unit['target'] ?? null) !== null && ($unit['target'] !== '')) {
+                $children[] = ['type' => 'target'];
+            }
+        }
+
+        foreach ($children as $child) {
+            $type = $child['type'] ?? '';
+            if ($type === 'source') {
+                $sourceAttributes = $unit['sourceAttributes'] ?? [];
+                $lines[] = sprintf(
+                    '%s<source%s>%s</source>',
+                    $this->indent(4),
+                    $this->formatOptionalAttributes($sourceAttributes),
+                    $this->escape($unit['source'] ?? '')
+                );
+                continue;
+            }
+            if ($type === 'target') {
+                $target = $unit['target'] ?? null;
+                $hasTarget = $unit['hasTarget'] ?? false;
+                if (!$hasTarget && ($target === null || $target === '')) {
+                    continue;
+                }
+                $targetAttributes = [];
+                if (($unit['state'] ?? null) !== null) {
+                    $targetAttributes['state'] = $unit['state'];
+                }
+                $targetAttributes = $this->mergeAttributes($targetAttributes, $unit['targetAttributes'] ?? []);
+                $lines[] = sprintf(
+                    '%s<target%s>%s</target>',
+                    $this->indent(4),
+                    $this->formatOptionalAttributes($targetAttributes),
+                    $this->escape($target ?? '')
+                );
+                continue;
+            }
+            if ($type === 'unknown' && isset($child['xml'])) {
+                foreach ($this->indentBlock((string)$child['xml'], 4) as $line) {
+                    $lines[] = $line;
+                }
+            }
+        }
+
+        $lines[] = $this->indent(3) . '</trans-unit>';
+
+        return $lines;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, string> $unknownAttributes
+     * @return array<string, string>
+     */
+    private function mergeAttributes(array $attributes, array $unknownAttributes): array
+    {
+        foreach ($unknownAttributes as $name => $value) {
+            if (!isset($attributes[$name])) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes;
+    }
+
+    private function formatOptionalAttributes(array $attributes): string
+    {
+        if ($attributes === []) {
+            return '';
+        }
+
+        return ' ' . $this->formatAttributes($attributes);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function indentBlock(string $xml, int $indentLevel): array
+    {
+        $xml = trim($xml);
+        if ($xml === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $xml) ?: [];
+        $minIndent = null;
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $leadingSpaces = strlen($line) - strlen(ltrim($line, " \t"));
+            $minIndent = $minIndent === null ? $leadingSpaces : min($minIndent, $leadingSpaces);
+        }
+        if ($minIndent !== null && $minIndent > 0) {
+            foreach ($lines as &$line) {
+                $line = preg_replace('/^[ \t]{0,' . $minIndent . '}/', '', $line) ?? $line;
+            }
+            unset($line);
+        }
+
+        $indented = [];
+        foreach ($lines as $line) {
+            $indented[] = $this->indent($indentLevel) . $line;
+        }
+
+        return $indented;
     }
 
     private function persistCatalog(string $filePath, string $contents): void
