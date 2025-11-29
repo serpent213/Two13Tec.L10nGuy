@@ -130,19 +130,19 @@ final class PhpReferenceCollector implements ReferenceCollectorInterface
         }
 
         $methodName = strtolower($call->name->name);
-        if (!in_array($methodName, ['translatebyid'], true)) {
-            return null;
+        if ($methodName === 'translatebyid') {
+            return $this->createReference(
+                identifier: $this->resolveStringArgument($call->args[0] ?? null),
+                fallback: null,
+                placeholders: $this->extractPlaceholders($call->args[1] ?? null),
+                sourceName: $this->resolveStringArgument($call->args[4] ?? null),
+                packageKey: $this->resolveStringArgument($call->args[5] ?? null),
+                filePath: $filePath,
+                lineNumber: $call->getStartLine()
+            );
         }
 
-        return $this->createReference(
-            identifier: $this->resolveStringArgument($call->args[0] ?? null),
-            fallback: null,
-            placeholders: $this->extractPlaceholders($call->args[1] ?? null),
-            sourceName: $this->resolveStringArgument($call->args[4] ?? null),
-            packageKey: $this->resolveStringArgument($call->args[5] ?? null),
-            filePath: $filePath,
-            lineNumber: $call->getStartLine()
-        );
+        return null;
     }
 
     /**

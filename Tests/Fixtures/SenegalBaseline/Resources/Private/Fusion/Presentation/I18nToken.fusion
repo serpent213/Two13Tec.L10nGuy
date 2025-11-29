@@ -1,0 +1,10 @@
+prototype(Two13Tec.Senegal:Presentation.I18nToken) < prototype(Neos.Fusion:Component) {
+    renderer = afx`
+        {I18n.id('cards.tokenAction')
+            .package('Two13Tec.Senegal')
+            .source('Presentation.Cards')
+            .arguments({ count: props.count })
+            .value('Do it {count}')
+            .translate()}
+    `
+}

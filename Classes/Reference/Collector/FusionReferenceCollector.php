@@ -115,7 +115,14 @@ final class FusionReferenceCollector implements ReferenceCollectorInterface
     {
         $length = strlen($contents);
 
-        foreach (['Translation.id' => false, 'Translation.plural' => true] as $token => $isPluralStart) {
+        foreach (
+            [
+                'Translation.id' => false,
+                'Translation.plural' => true,
+                'I18n.id' => false,
+                'I18n.plural' => true,
+            ] as $token => $isPluralStart
+        ) {
             $offset = 0;
 
             while (($position = strpos($contents, $token, $offset)) !== false) {

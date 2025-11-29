@@ -85,6 +85,23 @@ FUSION;
         }
     }
 
+    /**
+     * @test
+     */
+    public function detectsI18nTokenChain(): void
+    {
+        $file = new \SplFileInfo($this->fixturePath('Resources/Private/Fusion/Presentation/I18nToken.fusion'));
+        $references = $this->collector->collect($file);
+
+        self::assertCount(1, $references);
+        $reference = $references[0];
+        self::assertSame('cards.tokenAction', $reference->identifier);
+        self::assertSame('Two13Tec.Senegal', $reference->packageKey);
+        self::assertSame('Presentation.Cards', $reference->sourceName);
+        self::assertSame(['count' => 'props.count'], $reference->placeholders);
+        self::assertSame('Do it {count}', $reference->fallback);
+    }
+
     private function fixturePath(string $relative): string
     {
         return FLOW_PATH_ROOT . 'DistributionPackages/Two13Tec.L10nGuy/Tests/Fixtures/SenegalBaseline/' . $relative;
