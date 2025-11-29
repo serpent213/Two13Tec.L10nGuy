@@ -99,6 +99,7 @@ Neos:
 
 - English files only contain `<source>` nodes, while German adds `<target state="translated">…</target>`.
 - `cards.moreButton` is intentionally unused in Fusion, giving us a deterministic fixture for the `unused` command.
+- In the `SenegalBaseline` fixture we intentionally removed the `cards.authorPublishedBy` unit from both locales to simulate the regression we want `l10n:scan` to catch, even though the production catalogs still contain it.
 
 #### Document catalogs (`Resources/Private/Translations/de/NodeTypes/Document/Page.xlf`)
 

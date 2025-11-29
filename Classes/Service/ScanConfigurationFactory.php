@@ -57,16 +57,16 @@ final class ScanConfigurationFactory
         $paths = $this->normalizeList($paths);
 
         return new ScanConfiguration(
-            locales: $this->resolveLocales($cliOptions['locales'] ?? null),
-            packageKey: $cliOptions['package'] ?? null,
-            sourceName: $cliOptions['source'] ?? null,
-            paths: $paths,
-            format: $this->resolveFormat($cliOptions['format'] ?? null),
-            dryRun: $dryRun,
-            update: $update,
-            meta: [
+            $this->resolveLocales($cliOptions['locales'] ?? null),
+            $cliOptions['package'] ?? null,
+            $cliOptions['source'] ?? null,
+            $paths,
+            $this->resolveFormat($cliOptions['format'] ?? null),
+            $dryRun,
+            $update,
+            [
                 'cli' => $cliOptions,
-            ],
+            ]
         );
     }
 

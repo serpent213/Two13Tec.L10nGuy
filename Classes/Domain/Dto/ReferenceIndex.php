@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Domain\Dto;
 
+use Neos\Flow\Annotations as Flow;
+
 /*
  * This file is part of the Two13Tec.L10nGuy package.
  *
@@ -17,6 +19,7 @@ namespace Two13Tec\L10nGuy\Domain\Dto;
 /**
  * Holds the deduplicated reference map plus duplicate diagnostics.
  */
+#[Flow\Proxy(false)]
 final class ReferenceIndex
 {
     /**

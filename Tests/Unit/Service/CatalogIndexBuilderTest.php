@@ -45,16 +45,16 @@ final class CatalogIndexBuilderTest extends TestCase
             ->method('getMergedFileData')
             ->willReturnCallback(static function (string $fileId, Locale $locale): array {
                 $sharedUnits = [
-                    'cards.authorPublishedBy' => [
-                        [
-                            'source' => 'Published by {authorName}',
-                            'target' => $locale->getLanguage() === 'de' ? 'Veröffentlicht von {authorName}' : 'Published by {authorName}',
-                        ],
-                    ],
                     'cards.moreButton' => [
                         [
                             'source' => 'More',
                             'target' => $locale->getLanguage() === 'de' ? 'Mehr' : 'More',
+                        ],
+                    ],
+                    'cards.placeholderWarning' => [
+                        [
+                            'source' => 'Placeholder {name}',
+                            'target' => $locale->getLanguage() === 'de' ? 'Platzhalter {name}' : 'Placeholder {name}',
                         ],
                     ],
                     'cards.onlyFallback' => [
@@ -83,7 +83,7 @@ final class CatalogIndexBuilderTest extends TestCase
         $entriesDe = $index->entriesFor('de', 'Two13Tec.Senegal', 'Presentation.Cards');
         $entriesEn = $index->entriesFor('en', 'Two13Tec.Senegal', 'Presentation.Cards');
 
-        self::assertArrayHasKey('cards.authorPublishedBy', $entriesDe);
+        self::assertArrayHasKey('cards.placeholderWarning', $entriesDe);
         self::assertArrayHasKey('cards.moreButton', $entriesEn);
         self::assertArrayNotHasKey('cards.onlyFallback', $entriesEn, 'Fallback-only entries must not leak into catalogs.');
 

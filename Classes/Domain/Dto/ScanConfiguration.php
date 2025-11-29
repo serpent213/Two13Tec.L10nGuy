@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Domain\Dto;
 
+use Neos\Flow\Annotations as Flow;
+
 /*
  * This file is part of the Two13Tec.L10nGuy package.
  *
@@ -17,6 +19,7 @@ namespace Two13Tec\L10nGuy\Domain\Dto;
 /**
  * Value object describing the normalized scan configuration derived from settings and CLI options.
  */
+#[Flow\Proxy(false)]
 final readonly class ScanConfiguration
 {
     /**
@@ -39,14 +42,14 @@ final readonly class ScanConfiguration
     public function withDryRun(bool $dryRun): self
     {
         return new self(
-            locales: $this->locales,
-            packageKey: $this->packageKey,
-            sourceName: $this->sourceName,
-            paths: $this->paths,
-            format: $this->format,
-            dryRun: $dryRun,
-            update: $this->update,
-            meta: $this->meta,
+            $this->locales,
+            $this->packageKey,
+            $this->sourceName,
+            $this->paths,
+            $this->format,
+            $dryRun,
+            $this->update,
+            $this->meta,
         );
     }
 }

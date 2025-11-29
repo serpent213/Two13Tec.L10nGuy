@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Domain\Dto;
 
+use Neos\Flow\Annotations as Flow;
+
 /*
  * This file is part of the Two13Tec.L10nGuy package.
  *
@@ -17,6 +19,7 @@ namespace Two13Tec\L10nGuy\Domain\Dto;
 /**
  * DTO used to express catalog mutations when running in update/delete mode.
  */
+#[Flow\Proxy(false)]
 final class CatalogMutation
 {
     private string $normalizedIdentifier = '';

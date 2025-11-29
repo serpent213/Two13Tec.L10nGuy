@@ -17,24 +17,26 @@ use Neos\Flow\Annotations as Flow;
  */
 
 /**
- * Represents a translation entry that already exists inside an XLF catalog.
+ * Warns about placeholder expectations that do not match the reference call.
  */
 #[Flow\Proxy(false)]
-final readonly class CatalogEntry
+final readonly class PlaceholderMismatch
 {
-    public const STATE_NEW = 'new';
-    public const STATE_TRANSLATED = 'translated';
-    public const STATE_NEEDS_REVIEW = 'needs-review';
-
+    /**
+     * @param list<string> $missingPlaceholders
+     * @param list<string> $referencePlaceholders
+     * @param list<string> $catalogPlaceholders
+     */
     public function __construct(
         public string $locale,
         public string $packageKey,
         public string $sourceName,
         public string $identifier,
-        public string $filePath,
-        public ?string $source = null,
-        public ?string $target = null,
-        public ?string $state = null,
+        public array $missingPlaceholders,
+        public array $referencePlaceholders,
+        public array $catalogPlaceholders,
+        public TranslationReference $reference,
+        public ?CatalogEntry $catalogEntry,
     ) {
     }
 }

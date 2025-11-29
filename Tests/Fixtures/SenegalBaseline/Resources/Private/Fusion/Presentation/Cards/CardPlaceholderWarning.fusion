@@ -1,0 +1,13 @@
+prototype(Two13Tec.Senegal:Presentation.Cards.CardPlaceholderWarning) < prototype(Neos.Fusion:Component) {
+    renderer = afx`
+        <p class="text-xs text-muted-foreground">
+            {I18n.translate(
+                'cards.placeholderWarning',
+                'Placeholder {name}',
+                {},
+                'Presentation.Cards:cards',
+                'Two13Tec.Senegal'
+            )}
+        </p>
+    `
+}

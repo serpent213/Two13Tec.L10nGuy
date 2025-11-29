@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Two13Tec\L10nGuy\Domain\Dto;
 
+use Neos\Flow\Annotations as Flow;
+
 /*
  * This file is part of the Two13Tec.L10nGuy package.
  *
@@ -17,6 +19,7 @@ namespace Two13Tec\L10nGuy\Domain\Dto;
 /**
  * Aggregates catalog entries and metadata grouped by locale/package/source.
  */
+#[Flow\Proxy(false)]
 final class CatalogIndex
 {
     /**
@@ -62,6 +65,19 @@ final class CatalogIndex
     public function catalogPath(string $locale, string $packageKey, string $sourceName): ?string
     {
         return $this->catalogFiles[$locale][$packageKey][$sourceName]['path'] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function locales(): array
+    {
+        $fromCatalogs = array_keys($this->catalogFiles);
+        $fromEntries = array_keys($this->entries);
+        $locales = array_values(array_unique(array_merge($fromCatalogs, $fromEntries)));
+        sort($locales);
+
+        return $locales;
     }
 
     /**
