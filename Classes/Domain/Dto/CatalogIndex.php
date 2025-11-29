@@ -124,6 +124,28 @@ final class CatalogIndex
     }
 
     /**
+     * @return list<array{locale: string, packageKey: string, sourceName: string, path: string}>
+     */
+    public function catalogList(): array
+    {
+        $catalogs = [];
+        foreach ($this->catalogFiles as $locale => $packages) {
+            foreach ($packages as $packageKey => $sources) {
+                foreach ($sources as $sourceName => $data) {
+                    $catalogs[] = [
+                        'locale' => $locale,
+                        'packageKey' => $packageKey,
+                        'sourceName' => $sourceName,
+                        'path' => $data['path'],
+                    ];
+                }
+            }
+        }
+
+        return $catalogs;
+    }
+
+    /**
      * @return list<array{locale: string, packageKey: string, sourceName: string}>
      */
     public function missingCatalogs(): array

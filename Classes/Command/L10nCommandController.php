@@ -27,6 +27,7 @@ use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Service\CatalogFileParser;
 use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
 use Two13Tec\L10nGuy\Service\CatalogWriter;
 use Two13Tec\L10nGuy\Service\FileDiscoveryService;
@@ -222,6 +223,95 @@ class L10nCommandController extends CommandController
         $exitCode = $this->resolveUnusedExitCode($catalogIndex, $unusedEntries, $configuration);
         if ($exitCode !== ($this->exitCodes['success'] ?? 0)) {
             $this->quit($exitCode);
+        }
+    }
+
+    /**
+     * Re-render translation catalogs with canonical formatting or verify the current state.
+     *
+     * @param string|null $package Package key to limit catalog formatting
+     * @param string|null $source Optional source restriction (Presentation.Cards)
+     * @param string|null $path Optional absolute/relative root for catalog discovery
+     * @param string|null $locales Optional comma separated locale list
+     * @param bool|null $check Toggle check-only mode (exits non-zero when formatting is required)
+     */
+    public function formatCommand(
+        ?string $package = null,
+        ?string $source = null,
+        ?string $path = null,
+        ?string $locales = null,
+        ?bool $check = null
+    ): void {
+        $configuration = $this->scanConfigurationFactory->createFromCliOptions([
+            'package' => $package,
+            'source' => $source,
+            'paths' => $path ? [$path] : [],
+            'locales' => $locales,
+        ]);
+        $checkMode = (bool)$check;
+
+        $this->outputLine(
+            'Prepared format run for %s (locales: %s, check-only: %s).',
+            [
+                $configuration->packageKey ?? 'all packages',
+                $configuration->locales === [] ? '<none>' : implode(', ', $configuration->locales),
+                $checkMode ? 'yes' : 'no',
+            ]
+        );
+
+        $this->fileDiscoveryService->seedFromConfiguration($configuration);
+
+        $catalogIndex = $this->catalogIndexBuilder->build($configuration);
+        $catalogs = $catalogIndex->catalogList();
+
+        if ($catalogs === []) {
+            $this->outputLine('No catalogs matched the given filters.');
+            return;
+        }
+
+        $dirty = [];
+        $formatted = [];
+
+        foreach ($catalogs as $catalog) {
+            $filePath = $catalog['path'];
+            $parsed = CatalogFileParser::parse($filePath);
+            $isClean = $this->catalogWriter->reformatCatalog(
+                $filePath,
+                $parsed['meta'],
+                $parsed['units'],
+                $catalog['packageKey'],
+                $catalog['locale'],
+                !$checkMode
+            );
+
+            if ($checkMode) {
+                if (!$isClean) {
+                    $dirty[] = $filePath;
+                }
+                continue;
+            }
+
+            if (!$isClean) {
+                $formatted[] = $filePath;
+                $this->outputLine('Formatted catalog: %s', [$this->relativePath($filePath)]);
+            }
+        }
+
+        if ($checkMode) {
+            if ($dirty === []) {
+                $this->outputLine('All catalogs already match the canonical format.');
+                return;
+            }
+
+            foreach ($dirty as $file) {
+                $this->outputLine('Catalog requires formatting: %s', [$this->relativePath($file)]);
+            }
+
+            $this->quit($this->exitCodes['dirty'] ?? ($this->exitCodes['failure'] ?? 7));
+        }
+
+        if ($formatted === []) {
+            $this->outputLine('Catalogs already normalized.');
         }
     }
 

@@ -7,6 +7,7 @@ Neos:
           success: 0
           missing: 5
           unused: 6
+          dirty: 8
           failure: 7
         filePatterns:
           includes:

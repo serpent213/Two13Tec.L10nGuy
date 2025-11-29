@@ -143,6 +143,38 @@ final class CatalogWriter
     }
 
     /**
+     * Re-render an existing catalog with deterministic formatting.
+     *
+     * @param array<string, mixed> $metadata
+     * @param array<string, array{source: ?string, target: ?string, state: ?string}> $units
+     * @return bool True when the catalog already matched the canonical format
+     */
+    public function reformatCatalog(
+        string $filePath,
+        array $metadata,
+        array $units,
+        string $packageKey,
+        string $locale,
+        bool $applyChanges = true
+    ): bool {
+        $resolvedMetadata = $this->resolveMetadata($metadata, $packageKey, $locale);
+        $xml = $this->renderCatalog($resolvedMetadata, $units);
+        $currentContents = is_file($filePath) ? (string)file_get_contents($filePath) : '';
+
+        if ($xml === $currentContents) {
+            return true;
+        }
+
+        if (!$applyChanges) {
+            return false;
+        }
+
+        $this->persistCatalog($filePath, $xml);
+
+        return false;
+    }
+
+    /**
      * @param list<CatalogMutation> $mutations
      * @return array<string, list<CatalogMutation>>
      */
@@ -205,13 +237,8 @@ final class CatalogWriter
      */
     private function writeCatalogFile(string $filePath, array $metadata, array $units): void
     {
-        $directory = dirname($filePath);
-        if (!is_dir($directory)) {
-            Files::createDirectoryRecursively($directory);
-        }
-
         $xml = $this->renderCatalog($metadata, $units);
-        file_put_contents($filePath, $xml);
+        $this->persistCatalog($filePath, $xml);
     }
 
     /**
@@ -268,6 +295,16 @@ final class CatalogWriter
     private function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+    }
+
+    private function persistCatalog(string $filePath, string $contents): void
+    {
+        $directory = dirname($filePath);
+        if (!is_dir($directory)) {
+            Files::createDirectoryRecursively($directory);
+        }
+
+        file_put_contents($filePath, $contents);
     }
 
     private function resolveCatalogPath(ScanConfiguration $configuration, string $basePath, string $packageKey, string $locale, string $sourceName): ?string

@@ -1,12 +1,13 @@
-# Two13Tec.L10nGuy
+# L10nGuy for Neos CMS
 
-Flow CLI companion that keeps Neos translation catalogs in sync with the actual usage inside Fusion, PHP and YAML sources. The helper is developed against the production-sized `Two13Tec.Senegal` site, so every workflow mirrors real-world authoring and localization patterns.
+Flow CLI companion that keeps Neos translation catalogs in sync with the actual usage inside Fusion, PHP and YAML sources.
 
 ## Features
 - `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source.
 - `./flow l10n:unused` – lists catalog entries that no longer have a matching reference; can delete unused nodes in place (with dry-run support) to keep XLFs tidy.
+- `./flow l10n:format` – re-renders existing catalogs using the helper’s writer so indentation, attribute ordering, and trailing newlines stay consistent (supports `--check` for CI).
 - Shared diagnostics: table or JSON output, deterministic exit codes for CI pipelines, detailed logging of XML parse errors, duplicates, and missing catalogs.
-- Comprehensive fixtures + functional tests mirror Senegal components (Fusion cards, NodeTypes metadata, multilingual catalogs) so changes stay grounded.
+- Comprehensive fixtures + functional tests mirror real-life components
 
 ## Usage
 Run the commands from the project root (defaults to `Development` context). Common options work for both commands:
@@ -31,9 +32,10 @@ Run the commands from the project root (defaults to `Development` context). Comm
   --dry-run false
 ```
 
+- `./flow l10n:format --check` shares the same filters (`--package`, `--source`, `--path`, `--locales`) and exits non-zero when a catalog would be rewritten (without touching the files). Drop `--check` to re-render the catalogs in place.
 - `--update` for `l10n:scan` creates missing entries via the catalog writer. Dry-run defaults to `false` when `--update` is present so the command actually mutates catalogs unless explicitly told otherwise.
 - `--delete` for `l10n:unused` removes unused `<trans-unit>` nodes (and honors dry-run so you can preview changes).
-- Exit codes: `0` clean, `5` missing translations, `6` unused translations (unless deleted), `7` fatal failure.
+- Exit codes: `0` clean, `5` missing translations, `6` unused translations (unless deleted), `8` catalogs need formatting (from `--check`), `7` fatal failure.
 
 See `docs/llm/flow_i18n_helper.md` for the full implementation brief, data model notes, and fixture descriptions.
 
