@@ -104,6 +104,9 @@ final class CatalogIndex
         return $this->entries[$locale][$packageKey][$sourceName] ?? [];
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
     public function sources(): array
     {
         $sources = [];

@@ -69,6 +69,15 @@ class L10nCommandController extends CommandController
     #[Flow\Inject]
     protected LoggerInterface $logger;
 
+    /**
+     * @var array{
+     *     success?: int,
+     *     missing?: int,
+     *     failure?: int,
+     *     dirty?: int,
+     *     unused?: int
+     * }
+     */
     #[Flow\InjectConfiguration(path: 'exitCodes', package: 'Two13Tec.L10nGuy')]
     protected array $exitCodes = [];
 

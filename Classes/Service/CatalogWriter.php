@@ -215,6 +215,22 @@ final class CatalogWriter
         return $grouped;
     }
 
+    /**
+     * @param array{
+     *     productName: ?string,
+     *     sourceLanguage: ?string,
+     *     targetLanguage: ?string,
+     *     original?: ?string,
+     *     datatype?: ?string
+     * } $meta
+     * @return array{
+     *     productName: string,
+     *     sourceLanguage: string,
+     *     targetLanguage: ?string,
+     *     original: string,
+     *     datatype: string
+     * }
+     */
     private function resolveMetadata(array $meta, string $packageKey, string $locale): array
     {
         $productName = $meta['productName'] ?: $packageKey;
