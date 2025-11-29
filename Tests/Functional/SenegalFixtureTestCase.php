@@ -35,9 +35,36 @@ abstract class SenegalFixtureTestCase extends FunctionalTestCase
         }
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->resetFixture();
+    }
+
     protected static function getFixturePackagePath(): string
     {
         return Files::concatenatePaths([FLOW_PATH_DATA, self::TEMPORARY_FIXTURE_DIRECTORY]);
+    }
+
+    protected function resetFixture(): void
+    {
+        self::mirrorFixtureIntoSandbox();
+    }
+
+    protected function setProtectedProperty(object $object, string $propertyName, mixed $value): void
+    {
+        $reflection = new \ReflectionObject($object);
+        while ($reflection !== false) {
+            if ($reflection->hasProperty($propertyName)) {
+                $property = $reflection->getProperty($propertyName);
+                $property->setAccessible(true);
+                $property->setValue($object, $value);
+                return;
+            }
+            $reflection = $reflection->getParentClass();
+        }
+
+        throw new \RuntimeException(sprintf('Property %s not found on %s', $propertyName, $object::class), 1731159001);
     }
 
     private static function mirrorFixtureIntoSandbox(): void

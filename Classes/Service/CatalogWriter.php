@@ -86,6 +86,63 @@ final class CatalogWriter
     }
 
     /**
+     * Delete catalog entries that are no longer referenced anywhere.
+     *
+     * @param list<CatalogEntry> $entries
+     * @return list<string>
+     */
+    public function deleteEntries(array $entries, ScanConfiguration $configuration): array
+    {
+        if ($entries === []) {
+            return [];
+        }
+
+        $grouped = $this->groupEntriesByFile($entries);
+        $touched = [];
+
+        foreach ($grouped as $filePath => $groupEntries) {
+            if ($filePath === '' || !is_file($filePath)) {
+                continue;
+            }
+
+            $parsed = CatalogFileParser::parse($filePath);
+            $units = $parsed['units'];
+            $metadata = $this->resolveMetadata(
+                $parsed['meta'],
+                $groupEntries[0]->packageKey,
+                $groupEntries[0]->locale
+            );
+            $updated = false;
+
+            foreach ($groupEntries as $entry) {
+                if (!isset($units[$entry->identifier])) {
+                    continue;
+                }
+                unset($units[$entry->identifier]);
+                $updated = true;
+            }
+
+            if (!$updated) {
+                continue;
+            }
+
+            if ($units !== []) {
+                ksort($units, SORT_NATURAL | SORT_FLAG_CASE);
+            }
+
+            if ($configuration->dryRun) {
+                $touched[] = $filePath;
+                continue;
+            }
+
+            $this->writeCatalogFile($filePath, $metadata, $units);
+            $touched[] = $filePath;
+        }
+
+        return array_values(array_unique($touched));
+    }
+
+    /**
      * @param list<CatalogMutation> $mutations
      * @return array<string, list<CatalogMutation>>
      */
@@ -96,6 +153,21 @@ final class CatalogWriter
             $key = implode('|', [$mutation->locale, $mutation->packageKey, $mutation->sourceName]);
             $grouped[$key] ??= [];
             $grouped[$key][] = $mutation;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param list<CatalogEntry> $entries
+     * @return array<string, list<CatalogEntry>>
+     */
+    private function groupEntriesByFile(array $entries): array
+    {
+        $grouped = [];
+        foreach ($entries as $entry) {
+            $grouped[$entry->filePath] ??= [];
+            $grouped[$entry->filePath][] = $entry;
         }
 
         return $grouped;

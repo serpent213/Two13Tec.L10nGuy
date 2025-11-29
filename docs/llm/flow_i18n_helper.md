@@ -240,6 +240,15 @@ Functional tests can then assert:
 2. **Localization manager** runs `./flow l10n:scan --update --locales=de,en` after merging. Output lists files touched (e.g., `Added 1 trans-unit to DistributionPackages/Two13Tec.Senegal/Resources/Private/Translations/en/Presentation/Cards.xlf`). New `<trans-unit>` entries contain the fallback string as both `source` and `target`.
 3. **Maintainer** runs `./flow l10n:unused --package Two13Tec.Senegal --format=json` before a release. JSON output shows `cards.moreButton` is unused, referencing its locale + file path so the maintainer can delete or ignore it.
 
+## CLI usage cheatsheet
+- `./flow l10n:scan [--package Two13Tec.Senegal] [--source Presentation.Cards] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--dry-run true] [--update]`
+  - `--update` groups missing ids per catalog and passes them to `CatalogWriter`, printing `Touched catalog: …` lines when files would change. Default `dry-run` flips to `false` once `--update` is supplied so commands mutate catalogs unless explicitly told otherwise.
+  - Exit codes: `0` success, `5` missing translations, `7` fatal failure (XML parse, file I/O, etc.).
+- `./flow l10n:unused [--package Two13Tec.Senegal] [--source NodeTypes.Content.ContactForm] [--path DistributionPackages/Two13Tec.Senegal] [--locales de,en] [--format table|json] [--dry-run true] [--delete]`
+  - Lists catalog entries that have no matching reference in PHP/Fusion/YAML. JSON payload mirrors the scan schema plus `unused`.
+  - `--delete` delegates to the shared writer to remove unused `<trans-unit>` nodes. When paired with `--dry-run` it only logs which catalogs would be touched.
+  - Exit codes: `0` clean sweep, `6` unused translations tracked (unless `--delete` actually removed them), `7` fatal failure.
+
 ## Diagnostics & reporting
 - Missing placeholders trigger warnings (e.g., translation uses `{authorName}` but the Fusion call omits it).
 - Duplicate translation ids in the reference index increment a `duplicates` counter surfaced in the CLI table (and JSON payload).

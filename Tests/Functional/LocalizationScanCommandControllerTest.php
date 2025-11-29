@@ -66,6 +66,46 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     }
 
     /**
+     * @test
+     */
+    public function scanCommandUpdateWritesMissingEntries(): void
+    {
+        $cardsDe = self::getFixturePackagePath() . '/Resources/Private/Translations/de/Presentation/Cards.xlf';
+        $cardsEn = self::getFixturePackagePath() . '/Resources/Private/Translations/en/Presentation/Cards.xlf';
+        self::assertStringNotContainsString('cards.authorPublishedBy', file_get_contents($cardsDe));
+        self::assertStringNotContainsString('cards.authorPublishedBy', file_get_contents($cardsEn));
+
+        [$output, $exitCode] = $this->runScan([
+            'update' => true,
+        ]);
+
+        self::assertSame(5, $exitCode);
+        self::assertStringContainsString('Touched catalog', $output);
+        self::assertStringContainsString('cards.authorPublishedBy', file_get_contents($cardsDe));
+        self::assertStringContainsString('cards.authorPublishedBy', file_get_contents($cardsEn));
+
+        [, $exitCodeAfterUpdate] = $this->runScan();
+        self::assertSame(0, $exitCodeAfterUpdate);
+    }
+
+    /**
+     * @test
+     */
+    public function scanCommandUpdateDryRunLeavesCatalogUntouched(): void
+    {
+        $cardsEn = self::getFixturePackagePath() . '/Resources/Private/Translations/en/Presentation/Cards.xlf';
+        $beforeChecksum = md5_file($cardsEn);
+
+        [$output] = $this->runScan([
+            'update' => true,
+            'dryRun' => true,
+        ]);
+
+        self::assertStringContainsString('dry-run: yes', $output);
+        self::assertSame($beforeChecksum, md5_file($cardsEn));
+    }
+
+    /**
      * @param array<string, mixed> $overrides
      * @return array{string, int}
      */
@@ -116,19 +156,4 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
         return [$command, $buffer, $response];
     }
 
-    private function setProtectedProperty(object $object, string $propertyName, mixed $value): void
-    {
-        $reflection = new \ReflectionObject($object);
-        while ($reflection !== false) {
-            if ($reflection->hasProperty($propertyName)) {
-                $property = $reflection->getProperty($propertyName);
-                $property->setAccessible(true);
-                $property->setValue($object, $value);
-                return;
-            }
-            $reflection = $reflection->getParentClass();
-        }
-
-        throw new \RuntimeException(sprintf('Property %s not found on %s', $propertyName, $object::class), 1731159001);
-    }
 }

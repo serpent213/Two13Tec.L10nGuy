@@ -1,0 +1,120 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Two13Tec\L10nGuy\Tests\Functional;
+
+/*
+ * This file is part of the Two13Tec.L10nGuy package.
+ *
+ * (c) Steffen Beyer, 213tec
+ *
+ * This package is Open Source Software. For the full copyright and license
+ * information, please view the LICENSE file which was distributed with this
+ * source code.
+ */
+
+use Neos\Flow\Cli\ConsoleOutput;
+use Neos\Flow\Cli\Exception\StopCommandException;
+use Neos\Flow\Cli\Response as CliResponse;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Two13Tec\L10nGuy\Command\LocalizationUnusedCommandController;
+
+final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCase
+{
+    /**
+     * @test
+     */
+    public function unusedCommandReportsEntriesInJson(): void
+    {
+        [$output, $exitCode] = $this->runUnused([
+            'format' => 'json',
+        ]);
+
+        self::assertSame(6, $exitCode);
+        $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+        $moreButton = array_values(array_filter(
+            $payload['unused'] ?? [],
+            static fn (array $row) => $row['id'] === 'cards.moreButton'
+        ));
+        self::assertNotEmpty($moreButton);
+        self::assertSame('Two13Tec.Senegal', $moreButton[0]['package']);
+        self::assertArrayHasKey('duplicates', $payload);
+        self::assertArrayHasKey('diagnostics', $payload);
+    }
+
+    /**
+     * @test
+     */
+    public function unusedCommandDeleteRemovesEntries(): void
+    {
+        $cardsDe = self::getFixturePackagePath() . '/Resources/Private/Translations/de/Presentation/Cards.xlf';
+        $cardsEn = self::getFixturePackagePath() . '/Resources/Private/Translations/en/Presentation/Cards.xlf';
+        self::assertStringContainsString('cards.moreButton', file_get_contents($cardsDe));
+        self::assertStringContainsString('cards.moreButton', file_get_contents($cardsEn));
+
+        [$output, $exitCode] = $this->runUnused([
+            'delete' => true,
+        ]);
+
+        self::assertSame(0, $exitCode);
+        self::assertStringContainsString('Touched catalog', $output);
+        self::assertStringNotContainsString('cards.moreButton', file_get_contents($cardsDe));
+        self::assertStringNotContainsString('cards.moreButton', file_get_contents($cardsEn));
+
+        [, $exitCodeAfterDelete] = $this->runUnused();
+        self::assertSame(0, $exitCodeAfterDelete);
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array{string, int}
+     */
+    private function runUnused(array $overrides = []): array
+    {
+        [$command, $buffer, $response] = $this->bootstrapCommand();
+        $arguments = array_merge([
+            'package' => 'Two13Tec.Senegal',
+            'source' => null,
+            'path' => static::getFixturePackagePath(),
+            'locales' => 'de,en',
+            'format' => null,
+            'dryRun' => null,
+            'delete' => null,
+        ], $overrides);
+
+        try {
+            $command->unusedCommand(
+                $arguments['package'],
+                $arguments['source'],
+                $arguments['path'],
+                $arguments['locales'],
+                $arguments['format'],
+                $arguments['dryRun'],
+                $arguments['delete']
+            );
+        } catch (StopCommandException) {
+        }
+
+        return [$buffer->fetch(), $response->getExitCode()];
+    }
+
+    /**
+     * @return array{LocalizationUnusedCommandController, BufferedOutput, CliResponse}
+     */
+    private function bootstrapCommand(): array
+    {
+        /** @var LocalizationUnusedCommandController $command */
+        $command = $this->objectManager->get(LocalizationUnusedCommandController::class);
+        $buffer = new BufferedOutput();
+        $consoleOutput = new ConsoleOutput();
+        $consoleOutput->setOutput($buffer);
+        $this->setProtectedProperty($command, 'output', $consoleOutput);
+
+        $response = new CliResponse();
+        $this->setProtectedProperty($command, 'response', $response);
+
+        return [$command, $buffer, $response];
+    }
+
+}
