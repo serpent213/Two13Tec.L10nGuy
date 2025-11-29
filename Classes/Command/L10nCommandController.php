@@ -19,9 +19,12 @@ use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Psr\Log\LoggerInterface;
+use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
+use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
+use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
 use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
@@ -32,11 +35,11 @@ use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
 use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 
 /**
- * Flow CLI controller for `./flow l10n:scan`.
+ * Flow CLI controller for `./flow l10n:*`.
  *
  * @Flow\Scope("singleton")
  */
-class LocalizationScanCommandController extends CommandController
+class L10nCommandController extends CommandController
 {
     #[Flow\Inject]
     protected ScanConfigurationFactory $scanConfigurationFactory;
@@ -114,7 +117,7 @@ class LocalizationScanCommandController extends CommandController
             );
         }
 
-        $this->renderReport($scanResult, $configuration);
+        $this->renderScanReport($scanResult, $configuration);
 
         if ($configuration->update) {
             $mutations = $this->buildMutations($scanResult);
@@ -134,13 +137,95 @@ class LocalizationScanCommandController extends CommandController
             }
         }
 
-        $exitCode = $this->resolveExitCode($scanResult);
+        $exitCode = $this->resolveScanExitCode($scanResult);
         if ($exitCode !== ($this->exitCodes['success'] ?? 0)) {
             $this->quit($exitCode);
         }
     }
 
-    private function renderReport(ScanResult $scanResult, ScanConfiguration $configuration): void
+    /**
+     * Detect translation catalog entries that have no matching references and optionally delete them.
+     *
+     * @param string|null $package Package key to limit catalog inspection
+     * @param string|null $locales Optional comma separated locale list
+     * @param string|null $format Output format override
+     * @param bool|null $dryRun Whether to apply deletions
+     * @param bool|null $delete Toggle catalog mutations (Phase 5)
+     */
+    public function unusedCommand(
+        ?string $package = null,
+        ?string $source = null,
+        ?string $path = null,
+        ?string $locales = null,
+        ?string $format = null,
+        ?bool $dryRun = null,
+        ?bool $delete = null
+    ): void {
+        $configuration = $this->scanConfigurationFactory->createFromCliOptions([
+            'package' => $package,
+            'source' => $source,
+            'paths' => $path ? [$path] : [],
+            'locales' => $locales,
+            'format' => $format,
+            'dryRun' => $dryRun,
+            'update' => $delete,
+        ]);
+
+        $isJson = $configuration->format === 'json';
+        if (!$isJson) {
+            $this->outputLine(
+                'Prepared unused sweep for %s (locales: %s, format: %s, dry-run: %s).',
+                [
+                    $configuration->packageKey ?? 'all packages',
+                    $configuration->locales === [] ? '<none>' : implode(', ', $configuration->locales),
+                    $configuration->format,
+                    $configuration->dryRun ? 'yes' : 'no',
+                ]
+            );
+        }
+
+        $this->fileDiscoveryService->seedFromConfiguration($configuration);
+
+        $referenceIndex = $this->referenceIndexBuilder->build($configuration);
+        $catalogIndex = $this->catalogIndexBuilder->build($configuration);
+        $unusedEntries = $this->findUnusedEntries($catalogIndex, $referenceIndex, $configuration);
+
+        $this->logCatalogDiagnostics($catalogIndex);
+
+        if ($configuration->format === 'json') {
+            $this->output($this->renderUnusedJson($unusedEntries, $referenceIndex, $catalogIndex));
+            $this->outputLine();
+        } else {
+            $this->output($this->renderUnusedTable($unusedEntries));
+            $this->outputLine();
+
+            $duplicateCount = $referenceIndex->duplicateCount();
+            if ($duplicateCount > 0) {
+                $this->outputLine('Duplicate ids detected (%d occurrences).', [$duplicateCount]);
+            }
+        }
+
+        if ($configuration->update && $unusedEntries !== []) {
+            $touched = $this->catalogWriter->deleteEntries($unusedEntries, $configuration);
+
+            if (!$isJson) {
+                if ($touched === []) {
+                    $this->outputLine('No catalog entries were deleted.');
+                } else {
+                    foreach ($touched as $file) {
+                        $this->outputLine('Touched catalog: %s', [$this->relativePath($file)]);
+                    }
+                }
+            }
+        }
+
+        $exitCode = $this->resolveUnusedExitCode($catalogIndex, $unusedEntries, $configuration);
+        if ($exitCode !== ($this->exitCodes['success'] ?? 0)) {
+            $this->quit($exitCode);
+        }
+    }
+
+    private function renderScanReport(ScanResult $scanResult, ScanConfiguration $configuration): void
     {
         $catalogErrors = $scanResult->catalogIndex->errors();
         foreach ($catalogErrors as $error) {
@@ -162,12 +247,12 @@ class LocalizationScanCommandController extends CommandController
         }
 
         if ($configuration->format === 'json') {
-            $this->output($this->renderJson($scanResult));
+            $this->output($this->renderScanJson($scanResult));
             $this->outputLine();
             return;
         }
 
-        $this->output($this->renderTable($scanResult));
+        $this->output($this->renderScanTable($scanResult));
         $this->outputLine();
 
         if ($scanResult->placeholderMismatches !== []) {
@@ -233,7 +318,7 @@ class LocalizationScanCommandController extends CommandController
         return $mutations;
     }
 
-    private function resolveExitCode(ScanResult $scanResult): int
+    private function resolveScanExitCode(ScanResult $scanResult): int
     {
         if ($scanResult->catalogIndex->errors() !== []) {
             return $this->exitCodes['failure'] ?? 7;
@@ -246,7 +331,7 @@ class LocalizationScanCommandController extends CommandController
         return $this->exitCodes['success'] ?? 0;
     }
 
-    private function renderTable(ScanResult $scanResult): string
+    private function renderScanTable(ScanResult $scanResult): string
     {
         if ($scanResult->missingTranslations === []) {
             return 'No missing translations detected.';
@@ -271,7 +356,7 @@ class LocalizationScanCommandController extends CommandController
         return (string)$table;
     }
 
-    private function renderJson(ScanResult $scanResult): string
+    private function renderScanJson(ScanResult $scanResult): string
     {
         $payload = [
             'missing' => array_map(fn (MissingTranslation $missing) => [
@@ -297,7 +382,7 @@ class LocalizationScanCommandController extends CommandController
                 'file' => $this->relativePath($warning->reference->filePath),
                 'line' => $warning->reference->lineNumber,
             ], $scanResult->placeholderMismatches),
-            'duplicates' => $this->summarizeDuplicates($scanResult),
+            'duplicates' => $this->summarizeReferenceDuplicates($scanResult->referenceIndex),
             'diagnostics' => [
                 'errors' => $scanResult->catalogIndex->errors(),
                 'missingCatalogs' => $scanResult->catalogIndex->missingCatalogs(),
@@ -307,13 +392,98 @@ class LocalizationScanCommandController extends CommandController
         return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
     }
 
-    private function summarizeDuplicates(ScanResult $scanResult): array
+    /**
+     * @return list<CatalogEntry>
+     */
+    private function findUnusedEntries(
+        CatalogIndex $catalogIndex,
+        ReferenceIndex $referenceIndex,
+        ScanConfiguration $configuration
+    ): array {
+        $unused = [];
+        foreach ($catalogIndex->entries() as $locale => $packages) {
+            if ($configuration->locales !== [] && !in_array($locale, $configuration->locales, true)) {
+                continue;
+            }
+            foreach ($packages as $packageKey => $sources) {
+                if ($configuration->packageKey !== null && $configuration->packageKey !== $packageKey) {
+                    continue;
+                }
+                foreach ($sources as $sourceName => $identifiers) {
+                    if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
+                        continue;
+                    }
+                    foreach ($identifiers as $identifier => $entry) {
+                        if ($referenceIndex->allFor($packageKey, $sourceName, $identifier) !== []) {
+                            continue;
+                        }
+                        $unused[] = $entry;
+                    }
+                }
+            }
+        }
+
+        return $unused;
+    }
+
+    private function renderUnusedJson(
+        array $unusedEntries,
+        ReferenceIndex $referenceIndex,
+        CatalogIndex $catalogIndex
+    ): string {
+        $payload = [
+            'unused' => array_map(fn (CatalogEntry $entry) => [
+                'locale' => $entry->locale,
+                'package' => $entry->packageKey,
+                'source' => $entry->sourceName,
+                'id' => $entry->identifier,
+                'issue' => 'unused',
+                'state' => $entry->state,
+                'sourceText' => $entry->source,
+                'targetText' => $entry->target,
+                'file' => $this->relativePath($entry->filePath),
+            ], $unusedEntries),
+            'duplicates' => $this->summarizeReferenceDuplicates($referenceIndex),
+            'diagnostics' => [
+                'errors' => $catalogIndex->errors(),
+                'missingCatalogs' => $catalogIndex->missingCatalogs(),
+            ],
+        ];
+
+        return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
+    }
+
+    private function renderUnusedTable(array $unusedEntries): string
+    {
+        if ($unusedEntries === []) {
+            return 'No unused translations detected.';
+        }
+
+        $table = new Table();
+        $table->setHeaderStyle();
+        $table->setBorderStyle();
+
+        foreach ($unusedEntries as $entry) {
+            $table->row([
+                'Locale' => $entry->locale,
+                'Package' => $entry->packageKey,
+                'Source' => $entry->sourceName,
+                'Id' => $entry->identifier,
+                'Issue' => 'unused',
+                'File' => $this->relativePath($entry->filePath),
+            ]);
+        }
+
+        return (string)$table;
+    }
+
+    private function summarizeReferenceDuplicates(ReferenceIndex $referenceIndex): array
     {
         $duplicates = [];
-        foreach ($scanResult->referenceIndex->duplicates() as $packageKey => $sources) {
+        foreach ($referenceIndex->duplicates() as $packageKey => $sources) {
             foreach ($sources as $sourceName => $identifiers) {
-                foreach ($identifiers as $identifier => $list) {
-                    $allReferences = $scanResult->referenceIndex->allFor($packageKey, $sourceName, $identifier);
+                foreach ($identifiers as $identifier => $_list) {
+                    $allReferences = $referenceIndex->allFor($packageKey, $sourceName, $identifier);
                     $duplicates[] = [
                         'package' => $packageKey,
                         'source' => $sourceName,
@@ -332,6 +502,49 @@ class LocalizationScanCommandController extends CommandController
         }
 
         return $duplicates;
+    }
+
+    private function logCatalogDiagnostics(CatalogIndex $catalogIndex): void
+    {
+        foreach ($catalogIndex->errors() as $error) {
+            $this->logger->error(
+                $error['message'],
+                array_merge($error['context'], LogEnvironment::fromMethodName(__METHOD__))
+            );
+        }
+
+        foreach ($catalogIndex->missingCatalogs() as $missing) {
+            $this->logger->warning(
+                sprintf(
+                    'Missing catalog for locale %s (%s:%s)',
+                    $missing['locale'],
+                    $missing['packageKey'],
+                    $missing['sourceName']
+                ),
+                LogEnvironment::fromMethodName(__METHOD__)
+            );
+        }
+    }
+
+    private function resolveUnusedExitCode(
+        CatalogIndex $catalogIndex,
+        array $unusedEntries,
+        ScanConfiguration $configuration
+    ): int {
+        if ($catalogIndex->errors() !== []) {
+            return $this->exitCodes['failure'] ?? 7;
+        }
+
+        $hasUnused = $unusedEntries !== [];
+        if ($configuration->update && !$configuration->dryRun) {
+            $hasUnused = false;
+        }
+
+        if ($hasUnused) {
+            return $this->exitCodes['unused'] ?? 6;
+        }
+
+        return $this->exitCodes['success'] ?? 0;
     }
 
     private function relativePath(string $path): string

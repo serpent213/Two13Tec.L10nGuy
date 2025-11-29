@@ -18,7 +18,7 @@ use Neos\Flow\Cli\ConsoleOutput;
 use Neos\Flow\Cli\Exception\StopCommandException;
 use Neos\Flow\Cli\Response as CliResponse;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Two13Tec\L10nGuy\Command\LocalizationUnusedCommandController;
+use Two13Tec\L10nGuy\Command\L10nCommandController;
 
 final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCase
 {
@@ -100,12 +100,12 @@ final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCa
     }
 
     /**
-     * @return array{LocalizationUnusedCommandController, BufferedOutput, CliResponse}
+     * @return array{L10nCommandController, BufferedOutput, CliResponse}
      */
     private function bootstrapCommand(): array
     {
-        /** @var LocalizationUnusedCommandController $command */
-        $command = $this->objectManager->get(LocalizationUnusedCommandController::class);
+        /** @var L10nCommandController $command */
+        $command = $this->objectManager->get(L10nCommandController::class);
         $buffer = new BufferedOutput();
         $consoleOutput = new ConsoleOutput();
         $consoleOutput->setOutput($buffer);

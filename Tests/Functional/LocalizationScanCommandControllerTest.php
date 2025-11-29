@@ -18,7 +18,7 @@ use Neos\Flow\Cli\ConsoleOutput;
 use Neos\Flow\Cli\Exception\StopCommandException;
 use Neos\Flow\Cli\Response as CliResponse;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Two13Tec\L10nGuy\Command\LocalizationScanCommandController;
+use Two13Tec\L10nGuy\Command\L10nCommandController;
 
 final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
 {
@@ -139,12 +139,12 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     }
 
     /**
-     * @return array{LocalizationScanCommandController, BufferedOutput, CliResponse}
+     * @return array{L10nCommandController, BufferedOutput, CliResponse}
      */
     private function bootstrapCommand(): array
     {
-        /** @var LocalizationScanCommandController $command */
-        $command = $this->objectManager->get(LocalizationScanCommandController::class);
+        /** @var L10nCommandController $command */
+        $command = $this->objectManager->get(L10nCommandController::class);
         $buffer = new BufferedOutput();
         $consoleOutput = new ConsoleOutput();
         $consoleOutput->setOutput($buffer);
