@@ -34,6 +34,9 @@ use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
 use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
 use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
 use Two13Tec\L10nGuy\Service\ScanResultBuilder;
+use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
+use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
+use Two13Tec\L10nGuy\Llm\LlmTranslationService;
 
 /**
  * Flow CLI controller for `./flow l10n:*`.
@@ -68,6 +71,9 @@ class L10nCommandController extends CommandController
 
     #[Flow\Inject]
     protected ScanResultBuilder $scanResultBuilder;
+
+    #[Flow\Inject]
+    protected LlmTranslationService $llmTranslationService;
 
     #[Flow\Inject]
     protected LoggerInterface $logger;
@@ -172,6 +178,15 @@ class L10nCommandController extends CommandController
             if (!$isJson && !$configuration->quieter && $mutations === []) {
                 $this->outputLine('No catalog entries need to be created.');
             } elseif ($mutations !== []) {
+                if ($configuration->llm !== null && $configuration->llm->enabled) {
+                    try {
+                        $mutations = $this->llmTranslationService->translate($mutations, $scanResult, $configuration->llm);
+                    } catch (LlmUnavailableException|LlmConfigurationException $exception) {
+                        $this->outputLine('! %s', [$exception->getMessage()]);
+                        $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
+                    }
+                }
+
                 $touched = $this->catalogWriter->write($mutations, $catalogIndex, $configuration);
                 if (!$isJson && !$configuration->quieter) {
                     if ($touched === []) {
