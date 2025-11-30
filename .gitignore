@@ -6,3 +6,6 @@
 
 # TreeFmt
 .cache/
+
+# Sphinx build output
+Documentation/_build/

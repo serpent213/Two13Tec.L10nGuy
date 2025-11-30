@@ -32,7 +32,9 @@ Run the commands from the project root (defaults to `Development` context). Comm
 - `--delete` for `l10n:unused` removes unused `<trans-unit>` nodes. Without `--delete` the command only reports unused entries.
 - Exit codes: `0` clean, `5` missing translations, `6` unused translations (unless deleted), `8` catalogs need formatting (from `--check`), `7` fatal failure.
 
-See `docs/llm/flow_i18n_helper.md` for the full implementation brief, data model notes, and fixture descriptions.
+See `Documentation/Architecture.rst` for the full architecture guide, data model notes, and extension points.
+
+Run `just docs` to generate an HTML version in `Documentation/_build/html`.
 
 ## Supported reference patterns
 

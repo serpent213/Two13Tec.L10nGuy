@@ -3,6 +3,10 @@
 default:
 	@just --list
 
+# Build Sphinx documentation
+docs:
+	sphinx-build -b html Documentation Documentation/_build/html
+
 # Apply auto-formatters
 format:
 	treefmt --config-file treefmt.toml
@@ -23,7 +27,7 @@ lint:
 	fi
 	echo "Lint checks completed."
 
-# Execute package-specific tests (if defined)
+# Execute package-specific tests
 test:
 	#!/usr/bin/env bash
 	set -euo pipefail

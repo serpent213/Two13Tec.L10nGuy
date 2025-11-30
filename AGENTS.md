@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core PHP services, CLI commands, and DTOs live under `Classes/` using PSR-4 (`Two13Tec\L10nGuy\…`). Flow and Neos settings or command wiring go in `Configuration/`. Automated docs, briefs, and agent notes sit in `docs/llm/`. Tests are grouped by type inside `Tests/Unit`, `Tests/Functional`, and reusable fixtures under `Tests/Fixtures/SenegalBaseline`, which mirror the production `Two13Tec.Senegal` package so behavior stays realistic. If you need project automation, check `justfile` and `treefmt.toml` at the package root.
+Core PHP services, CLI commands, and DTOs live under `Classes/` using PSR-4 (`Two13Tec\L10nGuy\…`). Flow and Neos settings or command wiring go in `Configuration/`. Architecture documentation lives in `Documentation/` following Flow/Neos Sphinx conventions. Tests are grouped by type inside `Tests/Unit`, `Tests/Functional`, and reusable fixtures under `Tests/Fixtures/SenegalBaseline`, which mirror the production `Two13Tec.Senegal` package so behaviour stays realistic. If you need project automation, check `justfile` and `treefmt.toml` at the package root.
 
 ## Build, Test, and Development Commands
 - `composer install` (run in the distribution root) brings Flow + dev tools.
