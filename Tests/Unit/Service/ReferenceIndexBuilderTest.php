@@ -51,6 +51,7 @@ final class ReferenceIndexBuilderTest extends TestCase
             locales: ['de'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: null,
+            idPattern: null,
             paths: [$this->fixtureRoot()],
             format: 'table',
             update: false

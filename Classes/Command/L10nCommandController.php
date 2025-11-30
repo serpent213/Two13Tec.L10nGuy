@@ -91,8 +91,12 @@ class L10nCommandController extends CommandController
      * @param string|null $source Optional source restriction (e.g., Presentation.Cards)
      * @param string|null $path Optional absolute/relative search root for references and catalogs
      * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
+     * @param string|null $id Optional translation ID glob pattern (e.g., hero.*, *.label)
      * @param string|null $format Output format: table (default) or json
      * @param bool|null $update Write missing catalog entries to XLF files
+     * @param bool|null $llm Enable LLM-based translation of missing entries
+     * @param string|null $llmProvider Override the configured LLM provider
+     * @param string|null $llmModel Override the configured LLM model
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
      * @param bool|null $quiet Suppress table output
@@ -103,8 +107,12 @@ class L10nCommandController extends CommandController
         ?string $source = null,
         ?string $path = null,
         ?string $locales = null,
+        ?string $id = null,
         ?string $format = null,
         ?bool $update = null,
+        ?bool $llm = null,
+        ?string $llmProvider = null,
+        ?string $llmModel = null,
         ?bool $ignorePlaceholder = null,
         ?bool $setNeedsReview = null,
         ?bool $quiet = null,
@@ -115,8 +123,12 @@ class L10nCommandController extends CommandController
             'source' => $source,
             'paths' => $path ? [$path] : [],
             'locales' => $locales,
+            'id' => $id,
             'format' => $format,
             'update' => $update,
+            'llm' => $llm,
+            'llmProvider' => $llmProvider,
+            'llmModel' => $llmModel,
             'ignorePlaceholder' => $ignorePlaceholder,
             'setNeedsReview' => $setNeedsReview,
             'quiet' => $quiet,
@@ -186,6 +198,7 @@ class L10nCommandController extends CommandController
      * @param string|null $source Optional source restriction (e.g., Presentation.Cards)
      * @param string|null $path Optional absolute/relative root for catalog discovery
      * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
+     * @param string|null $id Optional translation ID glob pattern (e.g., hero.*, *.label)
      * @param string|null $format Output format: table (default) or json
      * @param bool|null $delete Delete unused catalog entries
      * @param bool|null $quiet Suppress table output
@@ -196,6 +209,7 @@ class L10nCommandController extends CommandController
         ?string $source = null,
         ?string $path = null,
         ?string $locales = null,
+        ?string $id = null,
         ?string $format = null,
         ?bool $delete = null,
         ?bool $quiet = null,
@@ -206,6 +220,7 @@ class L10nCommandController extends CommandController
             'source' => $source,
             'paths' => $path ? [$path] : [],
             'locales' => $locales,
+            'id' => $id,
             'format' => $format,
             'update' => $delete,
             'quiet' => $quiet,
@@ -711,11 +726,14 @@ class L10nCommandController extends CommandController
                 }
 
                 foreach ($sources as $sourceName => $identifiers) {
-                    if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
+                    if ($configuration->sourceName !== null && !$this->matchesPattern($sourceName, $configuration->sourceName)) {
                         continue;
                     }
 
-                    foreach ($identifiers as $entry) {
+                    foreach ($identifiers as $identifier => $entry) {
+                        if ($configuration->idPattern !== null && !$this->matchesPattern($identifier, $configuration->idPattern)) {
+                            continue;
+                        }
                         yield $entry;
                     }
                 }
@@ -759,6 +777,18 @@ class L10nCommandController extends CommandController
             $this->colorize($sourceLine, Table::COLOR_DARK_GRAY),
             $this->colorize($identifier, Table::ITALIC, Table::COLOR_LIGHT_YELLOW),
         ]);
+    }
+
+    private function matchesPattern(string $value, string $pattern): bool
+    {
+        if (!str_contains($pattern, '*')) {
+            return $value === $pattern;
+        }
+
+        $escaped = preg_quote($pattern, '/');
+        $regex = '/^' . str_replace('\*', '.*', $escaped) . '$/i';
+
+        return preg_match($regex, $value) === 1;
     }
 
     private function formatFileColumn(string $filePath, ?int $lineNumber = null): string

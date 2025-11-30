@@ -74,6 +74,7 @@ final class CatalogIndexBuilderTest extends TestCase
             locales: ['de', 'en', 'fr'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: null,
+            idPattern: null,
             paths: [$this->fixtureRoot()],
             format: 'table',
             update: false

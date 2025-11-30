@@ -101,11 +101,14 @@ final class ScanResultBuilder
             }
 
             foreach ($sources as $sourceName => $identifiers) {
-                if ($configuration->sourceName !== null && $configuration->sourceName !== $sourceName) {
+                if ($configuration->sourceName !== null && !$this->matchesPattern($sourceName, $configuration->sourceName)) {
                     continue;
                 }
 
                 foreach ($identifiers as $identifier => $reference) {
+                    if ($configuration->idPattern !== null && !$this->matchesPattern($identifier, $configuration->idPattern)) {
+                        continue;
+                    }
                     yield [new TranslationKey($packageKey, $sourceName, $identifier), $reference];
                 }
             }
@@ -334,5 +337,17 @@ final class ScanResultBuilder
             'base' => $match[1],
             'index' => (int)$match[2],
         ];
+    }
+
+    private function matchesPattern(string $value, string $pattern): bool
+    {
+        if (!str_contains($pattern, '*')) {
+            return $value === $pattern;
+        }
+
+        $escaped = preg_quote($pattern, '/');
+        $regex = '/^' . str_replace('\*', '.*', $escaped) . '$/i';
+
+        return preg_match($regex, $value) === 1;
     }
 }

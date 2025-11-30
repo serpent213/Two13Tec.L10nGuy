@@ -31,6 +31,7 @@ final readonly class ScanConfiguration
         public array $locales,
         public ?string $packageKey,
         public ?string $sourceName,
+        public ?string $idPattern,
         public array $paths,
         public string $format,
         public bool $update,
@@ -39,6 +40,7 @@ final readonly class ScanConfiguration
         public array $meta = [],
         public bool $quiet = false,
         public bool $quieter = false,
+        public ?LlmConfiguration $llm = null,
     ) {
     }
 }

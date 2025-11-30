@@ -67,6 +67,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['de', 'en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true
@@ -115,6 +116,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['de', 'en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true,
@@ -160,6 +162,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true
@@ -270,6 +273,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true
@@ -359,6 +363,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true
@@ -389,6 +394,7 @@ final class CatalogWriterTest extends TestCase
             locales: ['en'],
             packageKey: 'Two13Tec.Senegal',
             sourceName: 'Presentation.Cards',
+            idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
             update: true

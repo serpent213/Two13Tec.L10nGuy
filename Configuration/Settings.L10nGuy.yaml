@@ -39,6 +39,7 @@ Two13Tec:
     defaultPaths: []
 
     llm:
+      # Provider configuration (choose one)
       provider: ollama
       model: llama3.2:latest
       base_url: 'http://localhost:11434'
@@ -62,6 +63,19 @@ Two13Tec:
         Glossary:
 
         ...
+
+      contextWindowLines: 5
+      includeNodeTypeContext: true
+      includeExistingTranslations: true
+
+      batchSize: 1
+      maxBatchSize: 10
+
+      markAsGenerated: true
+      defaultState: 'needs-review'
+
+      maxTokensPerCall: 4096
+      rateLimitDelay: 100
 
     exitCodes:
       success: 0

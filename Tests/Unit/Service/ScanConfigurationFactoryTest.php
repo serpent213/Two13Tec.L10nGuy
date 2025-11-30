@@ -210,4 +210,67 @@ final class ScanConfigurationFactoryTest extends TestCase
         self::assertTrue($quieterConfiguration->quiet, 'quieter should imply quiet');
         self::assertTrue($quieterConfiguration->quieter);
     }
+
+    /**
+     * @test
+     */
+    public function capturesIdPatternFilter(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table'
+        );
+
+        $configuration = $factory->createFromCliOptions([
+            'id' => 'hero.*',
+        ]);
+
+        self::assertSame('hero.*', $configuration->idPattern);
+    }
+
+    /**
+     * @test
+     */
+    public function buildsLlmConfigurationWhenEnabled(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultLocales: ['en'],
+            llmSettings: [
+                'provider' => 'ollama',
+                'model' => 'llama3.2:latest',
+                'batchSize' => 2,
+                'contextWindowLines' => 7,
+                'includeNodeTypeContext' => false,
+                'includeExistingTranslations' => false,
+                'markAsGenerated' => false,
+                'defaultState' => 'new',
+                'maxTokensPerCall' => 2048,
+                'rateLimitDelay' => 50,
+                'systemPrompt' => 'demo prompt',
+            ]
+        );
+
+        $configuration = $factory->createFromCliOptions([
+            'llm' => true,
+            'llmProvider' => 'openai',
+            'llmModel' => 'gpt-4o',
+        ]);
+
+        self::assertNotNull($configuration->llm);
+        self::assertTrue($configuration->llm->enabled);
+        self::assertSame('openai', $configuration->llm->provider);
+        self::assertSame('gpt-4o', $configuration->llm->model);
+        self::assertSame(2, $configuration->llm->batchSize);
+        self::assertSame(10, $configuration->llm->maxBatchSize);
+        self::assertSame(7, $configuration->llm->contextWindowLines);
+        self::assertFalse($configuration->llm->includeNodeTypeContext);
+        self::assertFalse($configuration->llm->includeExistingTranslations);
+        self::assertFalse($configuration->llm->markAsGenerated);
+        self::assertSame('new', $configuration->llm->defaultState);
+        self::assertSame(2048, $configuration->llm->maxTokensPerCall);
+        self::assertSame(50, $configuration->llm->rateLimitDelay);
+        self::assertSame('demo prompt', $configuration->llm->systemPrompt);
+    }
 }

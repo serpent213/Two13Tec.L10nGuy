@@ -15,6 +15,7 @@ namespace Two13Tec\L10nGuy\Service;
  */
 
 use Neos\Flow\Annotations as Flow;
+use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 
 /**
@@ -42,6 +43,9 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'setNeedsReview', package: 'Two13Tec.L10nGuy')]
     protected bool $defaultSetNeedsReview = true;
 
+    #[Flow\InjectConfiguration(path: 'llm', package: 'Two13Tec.L10nGuy')]
+    protected array $llmSettings = [];
+
     /**
      * @param array<string, mixed>|null $flowI18nSettings
      * @param string|null $defaultFormat
@@ -49,6 +53,7 @@ final class ScanConfigurationFactory
      * @param list<string>|null $defaultPackages
      * @param list<string>|null $defaultPaths
      * @param bool|null $defaultSetNeedsReview
+     * @param array<string, mixed>|null $llmSettings
      */
     public function __construct(
         ?array $flowI18nSettings = null,
@@ -56,7 +61,8 @@ final class ScanConfigurationFactory
         ?array $defaultLocales = null,
         ?array $defaultPackages = null,
         ?array $defaultPaths = null,
-        ?bool $defaultSetNeedsReview = null
+        ?bool $defaultSetNeedsReview = null,
+        ?array $llmSettings = null
     ) {
         if ($flowI18nSettings !== null) {
             $this->flowI18nSettings = $flowI18nSettings;
@@ -82,6 +88,9 @@ final class ScanConfigurationFactory
         if ($defaultSetNeedsReview !== null) {
             $this->defaultSetNeedsReview = $defaultSetNeedsReview;
         }
+        if ($llmSettings !== null) {
+            $this->llmSettings = $llmSettings;
+        }
     }
 
     /**
@@ -106,10 +115,16 @@ final class ScanConfigurationFactory
             $packageKey = $this->defaultPackages[0];
         }
 
+        $idPattern = $cliOptions['id'] ?? null;
+        if ($idPattern === '') {
+            $idPattern = null;
+        }
+
         return new ScanConfiguration(
             $this->resolveLocales($cliOptions['locales'] ?? null),
             $packageKey !== '' ? $packageKey : null,
             $cliOptions['source'] ?? null,
+            $idPattern,
             $paths,
             $this->resolveFormat($cliOptions['format'] ?? null),
             $update,
@@ -119,7 +134,8 @@ final class ScanConfigurationFactory
                 'cli' => $cliOptions,
             ],
             $quiet || $quieter,
-            $quieter
+            $quieter,
+            $this->createLlmConfiguration($cliOptions)
         );
     }
 
@@ -189,5 +205,35 @@ final class ScanConfigurationFactory
         $filtered = array_filter(array_map(static fn ($item) => trim((string)$item), $value));
 
         return array_values(array_unique($filtered));
+    }
+
+    /**
+     * @param array<string, mixed> $cliOptions
+     */
+    private function createLlmConfiguration(array $cliOptions): ?LlmConfiguration
+    {
+        $enabled = (bool)($cliOptions['llm'] ?? false);
+        if (!$enabled) {
+            return null;
+        }
+
+        $settings = $this->llmSettings;
+
+        return new LlmConfiguration(
+            enabled: true,
+            provider: $cliOptions['llmProvider'] ?? $settings['provider'] ?? null,
+            model: $cliOptions['llmModel'] ?? $settings['model'] ?? null,
+            dryRun: (bool)($cliOptions['dryRun'] ?? false),
+            batchSize: (int)($cliOptions['batchSize'] ?? $settings['batchSize'] ?? 1),
+            maxBatchSize: (int)($settings['maxBatchSize'] ?? 10),
+            contextWindowLines: (int)($settings['contextWindowLines'] ?? 5),
+            includeNodeTypeContext: (bool)($settings['includeNodeTypeContext'] ?? true),
+            includeExistingTranslations: (bool)($settings['includeExistingTranslations'] ?? true),
+            markAsGenerated: (bool)($settings['markAsGenerated'] ?? true),
+            defaultState: (string)($settings['defaultState'] ?? 'needs-review'),
+            maxTokensPerCall: (int)($settings['maxTokensPerCall'] ?? 4096),
+            rateLimitDelay: (int)($settings['rateLimitDelay'] ?? 100),
+            systemPrompt: (string)($settings['systemPrompt'] ?? ''),
+        );
     }
 }
