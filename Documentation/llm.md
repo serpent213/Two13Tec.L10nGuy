@@ -6,7 +6,7 @@ Extend L10nGuy with LLM-based translation capabilities. When running `l10n:scan 
 - **Source texts** (when missing/placeholder)
 - **Translations** (for all configured target languages)
 
-Uses [symfony/ai](https://github.com/symfony/ai) as the LLM abstraction layer, supporting OpenAI, Anthropic, OpenRouter, and local Ollama through a unified interface.
+Uses [php-llm/llm-chain](https://github.com/php-llm/llm-chain) as the LLM abstraction layer, supporting OpenAI, Anthropic, OpenRouter, and local Ollama through a unified interface.
 
 ---
 
@@ -34,15 +34,15 @@ Uses [symfony/ai](https://github.com/symfony/ai) as the LLM abstraction layer, s
 ```json
 {
   "suggest": {
-    "symfony/ai": "Required for LLM-based translation features (^0.x)"
+    "php-llm/llm-chain": "Required for LLM-based translation features (^0.x)"
   }
 }
 ```
 
 Runtime detection:
 ```php
-if (!class_exists(\Symfony\AI\Platform\PlatformInterface::class)) {
-    $this->outputLine('! LLM features require symfony/ai. Run: composer require symfony/ai');
+if (!class_exists(\PhpLlm\LlmChain\Chain\Chain::class)) {
+    $this->outputLine('! LLM features require php-llm/llm-chain. Run: composer require php-llm/llm-chain');
     return self::EXIT_FAILURE;
 }
 ```
@@ -288,9 +288,8 @@ Multiple IDs per call:
 Use JSON mode / structured output for reliable parsing:
 
 ```php
-$response = $platform->chat([
+$response = $chain->call($messages, [
     'response_format' => ['type' => 'json_object'],
-    // ...
 ]);
 ```
 
@@ -428,7 +427,7 @@ Failed translations logged to `Data/Logs/L10nGuy_LLM.log`:
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
-- [ ] Add symfony/ai as suggested dependency
+- [ ] Add php-llm/llm-chain as suggested dependency
 - [ ] Create `LlmProviderFactory` for explicit provider instantiation (no auto-detection)
 - [ ] Add Settings structure under `llm` key
 - [ ] Add `--llm`, `--llm-provider`, `--llm-model` CLI options

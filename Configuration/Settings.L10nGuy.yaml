@@ -28,13 +28,41 @@ Two13Tec:
         - name: build
           pattern: 'Build/**'
           enabled: true
+
     defaultFormat: 'table'
     tabWidth: 2
     orderById: false
     setNeedsReview: true
+
     defaultLocales: []
     defaultPackages: []
     defaultPaths: []
+
+    llm:
+      provider: ollama
+      model: llama3.2:latest
+      base_url: 'http://localhost:11434'
+
+      # provider: openai
+      # model: gpt-4o-mini
+      # api_key: '%env(OPENAI_API_KEY)%'
+
+      # provider: anthropic
+      # model: claude-sonnet-4-5
+      # api_key: '%env(ANTHROPIC_API_KEY)%'
+
+      # OpenRouter example
+      # provider: openai
+      # model: meta-llama/llama-3.3-8b-instruct:free
+      # api_key: '%env(OPENROUTER_API_KEY)%'
+
+      systemPrompt: |
+        You are translator of a website. The domain is mediaval artwork.
+
+        Glossary:
+
+        ...
+
     exitCodes:
       success: 0
       missing: 5

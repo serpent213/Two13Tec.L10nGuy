@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This plan extends L10nGuy with LLM-based translation capabilities using `symfony/ai` as the abstraction layer. The implementation integrates cleanly into the existing pipeline: after `CatalogMutationFactory` produces mutations, an `LlmTranslationService` enriches them with translated text before `CatalogWriter` persists.
+This plan extends L10nGuy with LLM-based translation capabilities using `php-llm/llm-chain` as the abstraction layer. The implementation integrates cleanly into the existing pipeline: after `CatalogMutationFactory` produces mutations, an `LlmTranslationService` enriches them with translated text before `CatalogWriter` persists.
 
 ---
 
@@ -24,7 +24,7 @@ This plan extends L10nGuy with LLM-based translation capabilities using `symfony
 │ │                    NEW: LLM Integration Layer                   │ │
 │ │                                                                 │ │
 │ │   LlmTranslationService                                         │ │
-│ │     ├── LlmProviderFactory (creates symfony/ai Platform)        │ │
+│ │     ├── LlmProviderFactory (creates php-llm/llm-chain Chain)    │ │
 │ │     ├── TranslationContextBuilder (gathers context)             │ │
 │ │     ├── PromptBuilder (constructs system + user prompts)        │ │
 │ │     └── ResponseParser (extracts translations from JSON)        │ │
@@ -39,14 +39,14 @@ This plan extends L10nGuy with LLM-based translation capabilities using `symfony
 
 ## Phase 1: Core Infrastructure
 
-### 1.1 Add symfony/ai as Suggested Dependency
+### 1.1 Add php-llm/llm-chain as Suggested Dependency
 
 **File:** `composer.json`
 
 ```json
 {
   "suggest": {
-    "symfony/ai-platform": "Required for LLM-based translation features (^0.x)"
+    "php-llm/llm-chain": "Required for LLM-based translation features (^0.x)"
   }
 }
 ```
@@ -54,9 +54,9 @@ This plan extends L10nGuy with LLM-based translation capabilities using `symfony
 **Runtime Detection Pattern:**
 
 ```php
-if (!interface_exists(\Symfony\AI\Platform\PlatformInterface::class)) {
+if (!class_exists(\PhpLlm\LlmChain\Chain\Chain::class)) {
     throw new LlmUnavailableException(
-        'LLM features require symfony/ai-platform. Run: composer require symfony/ai-platform'
+        'LLM features require php-llm/llm-chain. Run: composer require php-llm/llm-chain'
     );
 }
 ```
@@ -65,7 +65,7 @@ if (!interface_exists(\Symfony\AI\Platform\PlatformInterface::class)) {
 
 **File:** `Classes/Llm/LlmProviderFactory.php`
 
-Creates the appropriate symfony/ai Platform based on Settings configuration. No auto-detection—explicit configuration required.
+Creates the appropriate php-llm/llm-chain Chain based on Settings configuration. No auto-detection—explicit configuration required.
 
 ```php
 <?php
@@ -73,11 +73,13 @@ declare(strict_types=1);
 namespace Two13Tec\L10nGuy\Llm;
 
 use Neos\Flow\Annotations as Flow;
-use Symfony\AI\Platform\PlatformInterface;
-use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaPlatformFactory;
-use Symfony\AI\Platform\Bridge\OpenAI\PlatformFactory as OpenAIPlatformFactory;
-use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicPlatformFactory;
-use Symfony\Component\HttpClient\HttpClient;
+use PhpLlm\LlmChain\Chain\Chain;
+use PhpLlm\LlmChain\Platform\Bridge\Anthropic\Claude;
+use PhpLlm\LlmChain\Platform\Bridge\Anthropic\PlatformFactory as AnthropicPlatformFactory;
+use PhpLlm\LlmChain\Platform\Bridge\Ollama\Ollama;
+use PhpLlm\LlmChain\Platform\Bridge\Ollama\PlatformFactory as OllamaPlatformFactory;
+use PhpLlm\LlmChain\Platform\Bridge\OpenAI\GPT;
+use PhpLlm\LlmChain\Platform\Bridge\OpenAI\PlatformFactory as OpenAIPlatformFactory;
 
 #[Flow\Scope("singleton")]
 final class LlmProviderFactory
@@ -87,7 +89,7 @@ final class LlmProviderFactory
         private readonly array $config = [],
     ) {}
 
-    public function create(): PlatformInterface
+    public function create(): Chain
     {
         $provider = $this->config['provider'] ?? null;
         if ($provider === null) {
@@ -111,13 +113,16 @@ final class LlmProviderFactory
         );
     }
 
-    private function createOllama(): PlatformInterface
+    private function createOllama(): Chain
     {
         $baseUrl = $this->config['base_url'] ?? 'http://localhost:11434';
-        return OllamaPlatformFactory::create($baseUrl, HttpClient::create());
+        $platform = OllamaPlatformFactory::create(baseUrl: $baseUrl);
+        $model = new Ollama($this->model());
+
+        return new Chain($platform, $model);
     }
 
-    private function createOpenAI(): PlatformInterface
+    private function createOpenAI(): Chain
     {
         $apiKey = $this->resolveEnvValue($this->config['api_key'] ?? '');
         if ($apiKey === '') {
@@ -125,20 +130,26 @@ final class LlmProviderFactory
         }
 
         $baseUrl = $this->config['base_url'] ?? null;
-        return OpenAIPlatformFactory::create(
+        $platform = OpenAIPlatformFactory::create(
             apiKey: $apiKey,
             baseUri: $baseUrl,  // null uses default, or custom for OpenRouter
         );
+        $model = new GPT($this->model());
+
+        return new Chain($platform, $model);
     }
 
-    private function createAnthropic(): PlatformInterface
+    private function createAnthropic(): Chain
     {
         $apiKey = $this->resolveEnvValue($this->config['api_key'] ?? '');
         if ($apiKey === '') {
             throw new LlmConfigurationException('Anthropic API key not configured');
         }
 
-        return AnthropicPlatformFactory::create(apiKey: $apiKey);
+        $platform = AnthropicPlatformFactory::create(apiKey: $apiKey);
+        $model = new Claude($this->model());
+
+        return new Chain($platform, $model);
     }
 
     private function resolveEnvValue(string $value): string
@@ -550,16 +561,15 @@ declare(strict_types=1);
 namespace Two13Tec\L10nGuy\Llm;
 
 use Neos\Flow\Annotations as Flow;
+use PhpLlm\LlmChain\Chain\Chain;
+use PhpLlm\LlmChain\Platform\Message\Message;
+use PhpLlm\LlmChain\Platform\Message\MessageBag;
 use Psr\Log\LoggerInterface;
-use Symfony\AI\Platform\Message\Message;
-use Symfony\AI\Platform\Message\MessageBag;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
-use Two13Tec\L10nGuy\Domain\Dto\TranslationRequest;
-use Two13Tec\L10nGuy\Domain\Dto\TranslationResult;
 
 #[Flow\Scope("singleton")]
 final class LlmTranslationService
@@ -599,8 +609,7 @@ final class LlmTranslationService
             return $mutations;
         }
 
-        $platform = $this->providerFactory->create();
-        $agent = $platform->createAgent($this->providerFactory->model());
+        $chain = $this->providerFactory->create();
         $systemPrompt = $this->promptBuilder->buildSystemPrompt($config);
 
         // Group mutations by identifier to translate all locales at once
@@ -613,7 +622,7 @@ final class LlmTranslationService
                 $item['missing'],
                 $scanResult->catalogIndex,
                 $config,
-                $agent,
+                $chain,
                 $systemPrompt,
             );
             array_push($enriched, ...$translatedMutations);
@@ -679,7 +688,7 @@ final class LlmTranslationService
         MissingTranslation $missing,
         CatalogIndex $catalogIndex,
         LlmConfiguration $config,
-        $agent,
+        Chain $chain,
         string $systemPrompt,
     ): array {
         $targetLanguages = array_map(fn($m) => $m->locale, $mutations);
@@ -692,8 +701,8 @@ final class LlmTranslationService
         );
 
         try {
-            $result = $agent->call($messages);
-            $translations = $this->responseParser->parse($result->getContent());
+            $response = $chain->call($messages);
+            $translations = $this->responseParser->parse($response->getContent());
         } catch (\Throwable $e) {
             $this->logger->warning('LLM translation failed', [
                 'identifier' => $missing->key->identifier,
@@ -1109,8 +1118,8 @@ public function translateCommand(
     ?bool $quiet = null,
     ?bool $quieter = null
 ): void {
-    if (!interface_exists(\Symfony\AI\Platform\PlatformInterface::class)) {
-        $this->outputLine('! LLM features require symfony/ai-platform. Run: composer require symfony/ai-platform');
+    if (!class_exists(\PhpLlm\LlmChain\Chain\Chain::class)) {
+        $this->outputLine('! LLM features require php-llm/llm-chain. Run: composer require php-llm/llm-chain');
         $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
     }
 
@@ -1267,7 +1276,7 @@ Tests/
 ## Implementation Order
 
 1. **Week 1: Infrastructure**
-   - [ ] Add symfony/ai-platform to composer.json (suggest)
+   - [ ] Add php-llm/llm-chain to composer.json (suggest)
    - [ ] Create exception classes
    - [ ] Implement `LlmProviderFactory`
    - [ ] Create `LlmConfiguration` DTO
@@ -1313,7 +1322,7 @@ Tests/
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| symfony/ai API instability | High | Pin to specific version, wrap in adapter layer |
+| php-llm/llm-chain API instability | High | Pin to specific version, wrap in adapter layer |
 | LLM response format variations | Medium | Robust JSON extraction, fallback strategies |
 | Rate limiting by providers | Medium | Configurable delay, exponential backoff |
 | Context window overflow | Medium | Truncate context intelligently, warn user |
