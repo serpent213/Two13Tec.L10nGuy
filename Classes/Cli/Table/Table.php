@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Two13Tec\L10nGuy\Cli\Table;
 
 /*
- * Embedded copy of initphp/cli-table (Table.php).
+ * Based on initphp/cli-table (Table.php).
+ * Original author: Muhammet Safak <info@muhammetsafak.com.tr>
  *
- * Original author: Muhammet SAFAK <info@muhammetsafak.com.tr>
  * Adapted for Two13Tec.L10nGuy: multi-line cells and ANSI-aware widths.
  */
 
@@ -55,20 +55,20 @@ class Table
     private array $columnCellStyle = [];
 
     private array $chars = [
-        'top'          => '═',
-        'top-mid'      => '╤',
-        'top-left'     => '╔',
-        'top-right'    => '╗',
-        'bottom'       => '═',
-        'bottom-mid'   => '╧',
-        'bottom-left'  => '╚',
-        'bottom-right' => '╝',
-        'left'         => '║',
-        'left-mid'     => '╟',
+        'top'          => '━',
+        'top-mid'      => '┯',
+        'top-left'     => '┏',
+        'top-right'    => '┓',
+        'bottom'       => '━',
+        'bottom-mid'   => '┸',
+        'bottom-left'  => '┗',
+        'bottom-right' => '┛',
+        'left'         => '┃',
+        'left-mid'     => '┠',
         'mid'          => '─',
         'mid-mid'      => '┼',
-        'right'        => '║',
-        'right-mid'    => '╢',
+        'right'        => '┃',
+        'right-mid'    => '┨',
         'middle'       => '│ ',
     ];
 
