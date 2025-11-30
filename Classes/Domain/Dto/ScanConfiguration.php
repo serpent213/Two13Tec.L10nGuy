@@ -34,6 +34,7 @@ final readonly class ScanConfiguration
         public array $paths,
         public string $format,
         public bool $update,
+        public bool $setNeedsReview = true,
         public bool $ignorePlaceholderWarnings = false,
         public array $meta = [],
     ) {

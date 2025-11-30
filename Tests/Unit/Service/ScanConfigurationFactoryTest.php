@@ -157,4 +157,38 @@ final class ScanConfigurationFactoryTest extends TestCase
 
         self::assertSame(['de', 'en'], $configuration->locales);
     }
+
+    /**
+     * @test
+     */
+    public function needsReviewDefaultsToConfigurationFlag(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultSetNeedsReview: true
+        );
+
+        $configuration = $factory->createFromCliOptions();
+
+        self::assertTrue($configuration->setNeedsReview);
+    }
+
+    /**
+     * @test
+     */
+    public function cliCanDisableNeedsReviewFlag(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table',
+            defaultSetNeedsReview: true
+        );
+
+        $configuration = $factory->createFromCliOptions(['setNeedsReview' => false]);
+        self::assertFalse($configuration->setNeedsReview);
+
+        $stringConfiguration = $factory->createFromCliOptions(['setNeedsReview' => 'false']);
+        self::assertFalse($stringConfiguration->setNeedsReview);
+    }
 }

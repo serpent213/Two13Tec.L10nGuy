@@ -64,6 +64,7 @@ final class CatalogWriter
             $parsed = CatalogFileParser::parse($filePath);
             $metadata = $this->resolveMetadata($parsed['meta'], $packageKey, $locale);
             $writeTarget = $this->shouldWriteTarget($metadata, $locale);
+            $setNeedsReview = $configuration->setNeedsReview;
             $units = $parsed['units'];
             $structure = [
                 'fileAttributes' => $parsed['fileAttributes'] ?? [],
@@ -73,7 +74,7 @@ final class CatalogWriter
             $updated = false;
 
             foreach ($group as $mutation) {
-                $updated = $this->applyMutation($units, $mutation, $writeTarget) || $updated;
+                $updated = $this->applyMutation($units, $mutation, $writeTarget, $setNeedsReview) || $updated;
             }
 
             if (!$updated) {
@@ -227,7 +228,7 @@ final class CatalogWriter
     /**
      * @param array<string, mixed> $units
      */
-    private function applyMutation(array &$units, CatalogMutation $mutation, bool $writeTarget): bool
+    private function applyMutation(array &$units, CatalogMutation $mutation, bool $writeTarget, bool $setNeedsReview): bool
     {
         $identifier = $mutation->identifier;
         if ($identifier === '') {
@@ -254,7 +255,12 @@ final class CatalogWriter
                 return false;
             }
 
-            $units[$baseId]['forms'][$formIndex] = $this->buildUnitFromMutation($mutation, $writeTarget, $identifier);
+            $units[$baseId]['forms'][$formIndex] = $this->buildUnitFromMutation(
+                $mutation,
+                $writeTarget,
+                $setNeedsReview,
+                $identifier
+            );
             $units[$baseId]['children'] ??= [];
             $units[$baseId]['children'][] = [
                 'type' => 'form',
@@ -273,7 +279,12 @@ final class CatalogWriter
             if (isset($units[$identifier]['forms'][0])) {
                 return false;
             }
-            $units[$identifier]['forms'][0] = $this->buildUnitFromMutation($mutation, $writeTarget, $formIdentifier);
+            $units[$identifier]['forms'][0] = $this->buildUnitFromMutation(
+                $mutation,
+                $writeTarget,
+                $setNeedsReview,
+                $formIdentifier
+            );
             $units[$identifier]['children'] ??= [];
             $units[$identifier]['children'][] = [
                 'type' => 'form',
@@ -293,24 +304,29 @@ final class CatalogWriter
 
         $units[$identifier] = array_merge(
             ['type' => 'single'],
-            $this->buildUnitFromMutation($mutation, $writeTarget, $identifier)
+            $this->buildUnitFromMutation($mutation, $writeTarget, $setNeedsReview, $identifier)
         );
 
         return true;
     }
 
-    private function buildUnitFromMutation(CatalogMutation $mutation, bool $writeTarget, string $identifier): array
+    private function buildUnitFromMutation(CatalogMutation $mutation, bool $writeTarget, bool $setNeedsReview, string $identifier): array
     {
         $target = $writeTarget ? $mutation->target : null;
         $hasTarget = $writeTarget && $mutation->target !== null && $mutation->target !== '';
+        $sourceAttributes = [];
+
+        if ($setNeedsReview && !$writeTarget) {
+            $sourceAttributes['state'] = CatalogEntry::STATE_NEEDS_REVIEW;
+        }
 
         return [
             'id' => $identifier,
             'source' => $mutation->source,
             'target' => $target,
-            'state' => $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
+            'state' => $setNeedsReview && $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
             'attributes' => [],
-            'sourceAttributes' => [],
+            'sourceAttributes' => $sourceAttributes,
             'targetAttributes' => [],
             'children' => [],
             'hasSource' => true,

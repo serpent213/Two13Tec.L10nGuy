@@ -39,19 +39,24 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'defaultPaths', package: 'Two13Tec.L10nGuy')]
     protected array $defaultPaths = [];
 
+    #[Flow\InjectConfiguration(path: 'setNeedsReview', package: 'Two13Tec.L10nGuy')]
+    protected bool $defaultSetNeedsReview = true;
+
     /**
      * @param array<string, mixed>|null $flowI18nSettings
      * @param string|null $defaultFormat
      * @param list<string>|null $defaultLocales
      * @param list<string>|null $defaultPackages
      * @param list<string>|null $defaultPaths
+     * @param bool|null $defaultSetNeedsReview
      */
     public function __construct(
         ?array $flowI18nSettings = null,
         ?string $defaultFormat = null,
         ?array $defaultLocales = null,
         ?array $defaultPackages = null,
-        ?array $defaultPaths = null
+        ?array $defaultPaths = null,
+        ?bool $defaultSetNeedsReview = null
     ) {
         if ($flowI18nSettings !== null) {
             $this->flowI18nSettings = $flowI18nSettings;
@@ -74,6 +79,9 @@ final class ScanConfigurationFactory
         } else {
             $this->defaultPaths = $this->normalizeList($this->defaultPaths);
         }
+        if ($defaultSetNeedsReview !== null) {
+            $this->defaultSetNeedsReview = $defaultSetNeedsReview;
+        }
     }
 
     /**
@@ -83,6 +91,7 @@ final class ScanConfigurationFactory
     {
         $update = (bool)($cliOptions['update'] ?? false);
         $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
+        $setNeedsReview = $this->resolveBooleanOption($cliOptions['setNeedsReview'] ?? null, $this->defaultSetNeedsReview);
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
         $paths = $this->normalizeList($paths);
@@ -102,6 +111,7 @@ final class ScanConfigurationFactory
             $paths,
             $this->resolveFormat($cliOptions['format'] ?? null),
             $update,
+            $setNeedsReview,
             $ignorePlaceholderWarnings,
             [
                 'cli' => $cliOptions,
@@ -137,6 +147,21 @@ final class ScanConfigurationFactory
         }
 
         return array_values(array_unique(array_filter($locales)));
+    }
+
+    private function resolveBooleanOption(mixed $value, bool $default): bool
+    {
+        if ($value === null) {
+            return $default;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $normalized = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        return $normalized ?? $default;
     }
 
     /**

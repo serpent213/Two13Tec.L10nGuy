@@ -94,6 +94,7 @@ class L10nCommandController extends CommandController
      * @param string|null $format Output format: table (default) or json
      * @param bool|null $update Write missing catalog entries to XLF files
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
+     * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
      */
     public function scanCommand(
         ?string $package = null,
@@ -102,7 +103,8 @@ class L10nCommandController extends CommandController
         ?string $locales = null,
         ?string $format = null,
         ?bool $update = null,
-        ?bool $ignorePlaceholder = null
+        ?bool $ignorePlaceholder = null,
+        ?bool $setNeedsReview = null
     ): void {
         $configuration = $this->scanConfigurationFactory->createFromCliOptions([
             'package' => $package,
@@ -112,6 +114,7 @@ class L10nCommandController extends CommandController
             'format' => $format,
             'update' => $update,
             'ignorePlaceholder' => $ignorePlaceholder,
+            'setNeedsReview' => $setNeedsReview,
         ]);
 
         $isJson = $configuration->format === 'json';

@@ -96,13 +96,58 @@ final class CatalogWriterTest extends TestCase
         $englishCatalog = file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
         $germanCatalog = file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
 
-        self::assertStringContainsString('<trans-unit id="cards.publishedDate" xml:space="preserve">' . PHP_EOL . '        <source>Published on {publishedDate}</source>' . PHP_EOL . '      </trans-unit>', $englishCatalog);
+        self::assertStringContainsString('<trans-unit id="cards.publishedDate" xml:space="preserve">' . PHP_EOL . '        <source state="needs-review">Published on {publishedDate}</source>' . PHP_EOL . '      </trans-unit>', $englishCatalog);
         self::assertStringContainsString('<target state="needs-review">Veröffentlicht am {publishedDate}</target>', $germanCatalog);
         self::assertLessThan(
             strpos($germanCatalog, '</file>'),
             strpos($germanCatalog, 'cards.publishedDate'),
             'New entry should be rendered before file closes.'
         );
+    }
+
+    /**
+     * @test
+     */
+    public function needsReviewFlagCanBeDisabled(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['de', 'en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            paths: [$this->sandboxPath],
+            format: 'table',
+            update: true,
+            setNeedsReview: false
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutations = [
+            new CatalogMutation(
+                locale: 'en',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.noState',
+                fallback: 'Review me'
+            ),
+            new CatalogMutation(
+                locale: 'de',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.noState',
+                fallback: 'Bitte prüfen'
+            ),
+        ];
+
+        $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
+
+        $englishCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $germanCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
+
+        self::assertStringContainsString('<source>Review me</source>', $englishCatalog);
+        self::assertStringNotContainsString('<source state="needs-review">Review me</source>', $englishCatalog);
+        self::assertStringContainsString('<target>Bitte prüfen</target>', $germanCatalog);
+        self::assertStringNotContainsString('<target state="needs-review">Bitte prüfen</target>', $germanCatalog);
     }
 
     /**
@@ -284,7 +329,7 @@ final class CatalogWriterTest extends TestCase
         $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
 
         $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
-        self::assertStringContainsString('<source>Grüße {会議時間}</source>', $contents);
+        self::assertStringContainsString('<source state="needs-review">Grüße {会議時間}</source>', $contents);
     }
 
     /**
