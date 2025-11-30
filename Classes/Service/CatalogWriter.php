@@ -530,11 +530,17 @@ final class CatalogWriter
             $lines = array_merge($lines, $this->renderUnit($identifier, $sortedUnits[$identifier]));
         }
 
-        foreach ($sortedUnits as $identifier => $unit) {
-            if (isset($usedIdentifiers[$identifier])) {
-                continue;
+        $remainingUnits = array_diff_key($sortedUnits, $usedIdentifiers);
+        if (!$this->orderById && $usedIdentifiers !== []) {
+            $identifiers = array_keys($remainingUnits);
+            natcasesort($identifiers);
+            foreach ($identifiers as $identifier) {
+                $lines = array_merge($lines, $this->renderUnit((string)$identifier, $remainingUnits[$identifier]));
             }
-            $lines = array_merge($lines, $this->renderUnit($identifier, $unit));
+        } else {
+            foreach ($remainingUnits as $identifier => $unit) {
+                $lines = array_merge($lines, $this->renderUnit($identifier, $unit));
+            }
         }
 
         $lines[] = $this->indent(2) . '</body>';

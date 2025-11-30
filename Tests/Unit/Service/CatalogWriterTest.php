@@ -263,6 +263,53 @@ final class CatalogWriterTest extends TestCase
     /**
      * @test
      */
+    public function appendsNewEntriesSortedWhenOrderByIdDisabled(): void
+    {
+        $writer = new CatalogWriter(orderById: false);
+        $configuration = new ScanConfiguration(
+            locales: ['en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            paths: [$this->sandboxPath],
+            format: 'table',
+            update: true
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutations = [
+            new CatalogMutation(
+                locale: 'en',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.zeta',
+                fallback: 'Zeta'
+            ),
+            new CatalogMutation(
+                locale: 'en',
+                packageKey: 'Two13Tec.Senegal',
+                sourceName: 'Presentation.Cards',
+                identifier: 'cards.alpha',
+                fallback: 'Alpha'
+            ),
+        ];
+
+        $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
+
+        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $alphaPos = strpos($contents, 'cards.alpha');
+        $zetaPos = strpos($contents, 'cards.zeta');
+        $placeholderPos = strpos($contents, 'cards.placeholderWarning');
+
+        self::assertNotFalse($alphaPos);
+        self::assertNotFalse($zetaPos);
+        self::assertNotFalse($placeholderPos);
+        self::assertLessThan($zetaPos, $alphaPos);
+        self::assertLessThan($alphaPos, $placeholderPos);
+    }
+
+    /**
+     * @test
+     */
     public function orderByIdSortingOverridesExistingBodyOrder(): void
     {
         $writer = new CatalogWriter(orderById: true);
