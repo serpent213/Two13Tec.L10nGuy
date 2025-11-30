@@ -19,6 +19,7 @@ use Neos\Utility\Files;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
+use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Utility\PathResolver;
 
@@ -65,6 +66,7 @@ final class CatalogWriter
             $metadata = $this->resolveMetadata($parsed['meta'], $packageKey, $locale);
             $writeTarget = $this->shouldWriteTarget($metadata, $locale);
             $setNeedsReview = $configuration->setNeedsReview;
+            $llmConfiguration = $configuration->llm;
             $units = $parsed['units'];
             $structure = [
                 'fileAttributes' => $parsed['fileAttributes'] ?? [],
@@ -74,7 +76,7 @@ final class CatalogWriter
             $updated = false;
 
             foreach ($group as $mutation) {
-                $updated = $this->applyMutation($units, $mutation, $writeTarget, $setNeedsReview) || $updated;
+                $updated = $this->applyMutation($units, $mutation, $writeTarget, $setNeedsReview, $llmConfiguration) || $updated;
             }
 
             if (!$updated) {
@@ -228,8 +230,13 @@ final class CatalogWriter
     /**
      * @param array<string, mixed> $units
      */
-    private function applyMutation(array &$units, CatalogMutation $mutation, bool $writeTarget, bool $setNeedsReview): bool
-    {
+    private function applyMutation(
+        array &$units,
+        CatalogMutation $mutation,
+        bool $writeTarget,
+        bool $setNeedsReview,
+        ?LlmConfiguration $llmConfiguration
+    ): bool {
         $identifier = $mutation->identifier;
         if ($identifier === '') {
             return false;
@@ -259,6 +266,7 @@ final class CatalogWriter
                 $mutation,
                 $writeTarget,
                 $setNeedsReview,
+                $llmConfiguration,
                 $identifier
             );
             $units[$baseId]['children'] ??= [];
@@ -283,6 +291,7 @@ final class CatalogWriter
                 $mutation,
                 $writeTarget,
                 $setNeedsReview,
+                $llmConfiguration,
                 $formIdentifier
             );
             $units[$identifier]['children'] ??= [];
@@ -304,34 +313,100 @@ final class CatalogWriter
 
         $units[$identifier] = array_merge(
             ['type' => 'single'],
-            $this->buildUnitFromMutation($mutation, $writeTarget, $setNeedsReview, $identifier)
+            $this->buildUnitFromMutation(
+                $mutation,
+                $writeTarget,
+                $setNeedsReview,
+                $llmConfiguration,
+                $identifier
+            )
         );
 
         return true;
     }
 
-    private function buildUnitFromMutation(CatalogMutation $mutation, bool $writeTarget, bool $setNeedsReview, string $identifier): array
-    {
+    private function buildUnitFromMutation(
+        CatalogMutation $mutation,
+        bool $writeTarget,
+        bool $setNeedsReview,
+        ?LlmConfiguration $llmConfiguration,
+        string $identifier
+    ): array {
         $target = $writeTarget ? $mutation->target : null;
         $hasTarget = $writeTarget && $mutation->target !== null && $mutation->target !== '';
         $sourceAttributes = [];
+        $state = $this->resolveReviewState($mutation, $setNeedsReview, $llmConfiguration);
 
-        if ($setNeedsReview && !$writeTarget) {
-            $sourceAttributes['state'] = CatalogEntry::STATE_NEEDS_REVIEW;
+        if ($state !== null && !$writeTarget) {
+            $sourceAttributes['state'] = $state;
         }
 
         return [
             'id' => $identifier,
             'source' => $mutation->source,
             'target' => $target,
-            'state' => $setNeedsReview && $writeTarget ? CatalogEntry::STATE_NEEDS_REVIEW : null,
+            'state' => $state !== null && $writeTarget ? $state : null,
             'attributes' => [],
             'sourceAttributes' => $sourceAttributes,
             'targetAttributes' => [],
             'children' => [],
             'hasSource' => true,
             'hasTarget' => $hasTarget,
+            'notes' => $this->buildLlmNotes($mutation, $llmConfiguration),
         ];
+    }
+
+    private function resolveReviewState(
+        CatalogMutation $mutation,
+        bool $setNeedsReview,
+        ?LlmConfiguration $llmConfiguration
+    ): ?string {
+        if ($mutation->isLlmGenerated && $llmConfiguration !== null && $llmConfiguration->markAsGenerated) {
+            $state = trim($llmConfiguration->defaultState);
+            if ($state !== '') {
+                return $state;
+            }
+        }
+
+        return $setNeedsReview ? CatalogEntry::STATE_NEEDS_REVIEW : null;
+    }
+
+    /**
+     * @return list<array{from?: string, priority?: int, content?: string}>
+     */
+    private function buildLlmNotes(CatalogMutation $mutation, ?LlmConfiguration $llmConfiguration): array
+    {
+        if (!$mutation->isLlmGenerated || $llmConfiguration === null || !$llmConfiguration->markAsGenerated) {
+            return [];
+        }
+
+        $notes = [
+            [
+                'from' => 'l10nguy',
+                'priority' => 1,
+                'content' => 'llm-generated',
+            ],
+        ];
+
+        $metaParts = [];
+        if ($mutation->llmProvider !== null && $mutation->llmProvider !== '') {
+            $metaParts[] = sprintf('provider:%s', $mutation->llmProvider);
+        }
+        if ($mutation->llmModel !== null && $mutation->llmModel !== '') {
+            $metaParts[] = sprintf('model:%s', $mutation->llmModel);
+        }
+        if ($mutation->llmGeneratedAt instanceof \DateTimeInterface) {
+            $metaParts[] = sprintf('generated:%s', $mutation->llmGeneratedAt->format(\DATE_ATOM));
+        }
+
+        if ($metaParts !== []) {
+            $notes[] = [
+                'from' => 'l10nguy',
+                'content' => implode(' ', $metaParts),
+            ];
+        }
+
+        return $notes;
     }
 
     /**
@@ -733,6 +808,23 @@ final class CatalogWriter
                     $lines[] = $line;
                 }
             }
+        }
+
+        foreach ($unit['notes'] ?? [] as $note) {
+            $noteAttributes = [];
+            if (isset($note['from'])) {
+                $noteAttributes['from'] = $note['from'];
+            }
+            if (isset($note['priority'])) {
+                $noteAttributes['priority'] = (string)$note['priority'];
+            }
+
+            $lines[] = sprintf(
+                '%s<note%s>%s</note>',
+                $this->indent($indentLevel + 1),
+                $this->formatOptionalAttributes($noteAttributes),
+                $this->escape($note['content'] ?? '')
+            );
         }
 
         $lines[] = $this->indent($indentLevel) . '</trans-unit>';

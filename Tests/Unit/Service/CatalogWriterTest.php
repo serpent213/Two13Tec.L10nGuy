@@ -18,6 +18,7 @@ use Neos\Utility\Files;
 use PHPUnit\Framework\TestCase;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
+use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Exception\CatalogFileParserException;
 use Two13Tec\L10nGuy\Service\CatalogFileParser;
@@ -150,6 +151,56 @@ final class CatalogWriterTest extends TestCase
         self::assertStringNotContainsString('<source state="needs-review">Review me</source>', $englishCatalog);
         self::assertStringContainsString('<target>Bitte prüfen</target>', $germanCatalog);
         self::assertStringNotContainsString('<target state="needs-review">Bitte prüfen</target>', $germanCatalog);
+    }
+
+    /**
+     * @test
+     */
+    public function writesLlmMetadataAndDefaultState(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['de'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            idPattern: null,
+            paths: [$this->sandboxPath],
+            format: 'table',
+            update: true,
+            setNeedsReview: false,
+            llm: new LlmConfiguration(
+                enabled: true,
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                markAsGenerated: true,
+                defaultState: 'needs-review'
+            )
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutation = new CatalogMutation(
+            locale: 'de',
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            identifier: 'cards.llmGenerated',
+            fallback: 'Generated label'
+        );
+        $mutation->target = 'Erzeugt';
+        $mutation->isLlmGenerated = true;
+        $mutation->llmProvider = 'openai';
+        $mutation->llmModel = 'gpt-4o-mini';
+        $mutation->llmGeneratedAt = new \DateTimeImmutable('2024-01-02T03:04:05+00:00');
+
+        $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
+
+        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
+
+        self::assertStringContainsString('<target state="needs-review">Erzeugt</target>', $contents);
+        self::assertStringContainsString('<note from="l10nguy" priority="1">llm-generated</note>', $contents);
+        self::assertStringContainsString(
+            '<note from="l10nguy">provider:openai model:gpt-4o-mini generated:2024-01-02T03:04:05+00:00</note>',
+            $contents
+        );
     }
 
     /**

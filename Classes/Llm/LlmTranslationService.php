@@ -46,6 +46,9 @@ final class LlmTranslationService
     protected ResponseParser $responseParser;
 
     #[Flow\Inject]
+    protected PlaceholderValidator $placeholderValidator;
+
+    #[Flow\Inject]
     protected LoggerInterface $logger;
 
     /**
@@ -95,7 +98,7 @@ final class LlmTranslationService
                 continue;
             }
 
-            $this->applyTranslations($batch, $parsed);
+            $this->applyTranslations($batch, $parsed, $config);
 
             if ($config->rateLimitDelay > 0) {
                 usleep($config->rateLimitDelay * 1000);
@@ -109,8 +112,10 @@ final class LlmTranslationService
      * @param list<array{mutations: list<CatalogMutation>, missing: MissingTranslation}> $batch
      * @param array<string, array<string, string>> $parsed
      */
-    private function applyTranslations(array $batch, array $parsed): void
+    private function applyTranslations(array $batch, array $parsed, LlmConfiguration $config): void
     {
+        $generatedAt = $config->markAsGenerated ? new \DateTimeImmutable() : null;
+
         foreach ($batch as $group) {
             $translationId = $this->translationId($group['missing']);
             $translations = $parsed[$translationId]
@@ -133,9 +138,31 @@ final class LlmTranslationService
             }
 
             foreach ($group['mutations'] as $mutation) {
-                if (isset($translations[$mutation->locale])) {
-                    $mutation->target = $translations[$mutation->locale];
+                if (!isset($translations[$mutation->locale])) {
+                    continue;
                 }
+
+                $translation = $translations[$mutation->locale];
+                $expectedPlaceholders = $this->expectedPlaceholders($mutation);
+                if ($expectedPlaceholders !== [] && !$this->placeholderValidator->validate(
+                    $mutation->identifier,
+                    $mutation->locale,
+                    $translation,
+                    $expectedPlaceholders
+                )) {
+                    continue;
+                }
+
+                $mutation->target = $translation;
+
+                if (!$config->markAsGenerated) {
+                    continue;
+                }
+
+                $mutation->isLlmGenerated = true;
+                $mutation->llmProvider = $config->provider ?? null;
+                $mutation->llmModel = $config->model ?? null;
+                $mutation->llmGeneratedAt = $generatedAt;
             }
         }
     }
@@ -237,6 +264,36 @@ final class LlmTranslationService
         sort($locales, SORT_NATURAL | SORT_FLAG_CASE);
 
         return $locales;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function expectedPlaceholders(CatalogMutation $mutation): array
+    {
+        $placeholders = array_keys($mutation->placeholders);
+        if ($placeholders === [] && $mutation->fallback !== '') {
+            $placeholders = $this->extractPlaceholders($mutation->fallback);
+        }
+
+        $placeholders = array_values(array_unique($placeholders));
+        sort($placeholders, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $placeholders;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPlaceholders(string $value): array
+    {
+        preg_match_all('/\{([A-Za-z0-9_.:-]+)\}/', $value, $matches);
+        $placeholders = array_filter(
+            $matches[1] ?? [],
+            static fn (string $placeholder): bool => $placeholder !== ''
+        );
+
+        return array_values(array_unique($placeholders));
     }
 
     private function translationId(MissingTranslation $missing): string

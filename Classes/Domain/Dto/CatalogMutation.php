@@ -26,6 +26,10 @@ final class CatalogMutation
     private string $fallbackValue = '';
     private string $sourceValue = '';
     private string $targetValue = '';
+    private bool $llmGenerated = false;
+    private ?string $llmProviderValue = null;
+    private ?string $llmModelValue = null;
+    private ?\DateTimeImmutable $llmGeneratedAtValue = null;
 
     /**
      * @param array<string, string> $placeholders
@@ -69,5 +73,25 @@ final class CatalogMutation
     public string $target {
         get => $this->targetValue;
         set => $this->targetValue = (string)$value;
+    }
+
+    public bool $isLlmGenerated {
+        get => $this->llmGenerated;
+        set => $this->llmGenerated = (bool)$value;
+    }
+
+    public ?string $llmProvider {
+        get => $this->llmProviderValue;
+        set => $this->llmProviderValue = $value === null ? null : trim((string)$value);
+    }
+
+    public ?string $llmModel {
+        get => $this->llmModelValue;
+        set => $this->llmModelValue = $value === null ? null : trim((string)$value);
+    }
+
+    public ?\DateTimeImmutable $llmGeneratedAt {
+        get => $this->llmGeneratedAtValue;
+        set => $this->llmGeneratedAtValue = $value instanceof \DateTimeImmutable ? $value : null;
     }
 }
