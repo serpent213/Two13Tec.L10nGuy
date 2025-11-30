@@ -439,29 +439,42 @@ class L10nCommandController extends CommandController
             return 'No missing translations detected.';
         }
 
-        $table = $this->createStyledTable();
-        $hidePackagePrefix = $this->isSinglePackage(
-            array_map(
-                fn (MissingTranslation $missing) => $missing->key->packageKey,
-                $scanResult->missingTranslations
-            )
-        );
+        $this->sortMissingTranslations($scanResult->missingTranslations);
 
+        $grouped = [];
         foreach ($scanResult->missingTranslations as $missing) {
-            $reference = $missing->reference;
-            $table->row([
-                'Locale' => $missing->locale,
-                'Source' => $this->formatSourceCell(
-                    $missing->key->packageKey,
-                    $missing->key->sourceName,
-                    $missing->key->identifier,
-                    $hidePackagePrefix
-                ),
-                'File' => $this->formatFileColumn($reference->filePath, $reference->lineNumber),
-            ]);
+            $grouped[$missing->locale][] = $missing;
         }
 
-        return (string)$table;
+        $output = [];
+        ksort($grouped);
+
+        foreach ($grouped as $locale => $missingTranslations) {
+            $table = $this->createStyledTable();
+            $hidePackagePrefix = $this->isSinglePackage(
+                array_map(
+                    fn (MissingTranslation $missing) => $missing->key->packageKey,
+                    $missingTranslations
+                )
+            );
+
+            foreach ($missingTranslations as $missing) {
+                $reference = $missing->reference;
+                $table->row([
+                    'Source' => $this->formatSourceCell(
+                        $missing->key->packageKey,
+                        $missing->key->sourceName,
+                        $missing->key->identifier,
+                        $hidePackagePrefix
+                    ),
+                    'File' => $this->formatFileColumn($reference->filePath, $reference->lineNumber),
+                ]);
+            }
+
+            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
+        }
+
+        return implode(PHP_EOL . PHP_EOL, $output);
     }
 
     private function renderScanJson(ScanResult $scanResult, ScanConfiguration $configuration): string
@@ -557,28 +570,41 @@ class L10nCommandController extends CommandController
             return 'No unused translations detected.';
         }
 
-        $table = $this->createStyledTable();
-        $hidePackagePrefix = $this->isSinglePackage(
-            array_map(
-                fn (CatalogEntry $entry) => $entry->packageKey,
-                $unusedEntries
-            )
-        );
+        $this->sortCatalogEntries($unusedEntries);
 
+        $grouped = [];
         foreach ($unusedEntries as $entry) {
-            $table->row([
-                'Locale' => $entry->locale,
-                'Source' => $this->formatSourceCell(
-                    $entry->packageKey,
-                    $entry->sourceName,
-                    $entry->identifier,
-                    $hidePackagePrefix
-                ),
-                'File' => $this->formatFileColumn($entry->filePath),
-            ]);
+            $grouped[$entry->locale][] = $entry;
         }
 
-        return (string)$table;
+        $output = [];
+        ksort($grouped);
+
+        foreach ($grouped as $locale => $entries) {
+            $table = $this->createStyledTable();
+            $hidePackagePrefix = $this->isSinglePackage(
+                array_map(
+                    fn (CatalogEntry $entry) => $entry->packageKey,
+                    $entries
+                )
+            );
+
+            foreach ($entries as $entry) {
+                $table->row([
+                    'Source' => $this->formatSourceCell(
+                        $entry->packageKey,
+                        $entry->sourceName,
+                        $entry->identifier,
+                        $hidePackagePrefix
+                    ),
+                    'File' => $this->formatFileColumn($entry->filePath),
+                ]);
+            }
+
+            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
+        }
+
+        return implode(PHP_EOL . PHP_EOL, $output);
     }
 
     private function summarizeReferenceDuplicates(ReferenceIndex $referenceIndex): array
@@ -736,6 +762,30 @@ class L10nCommandController extends CommandController
     private function isSinglePackage(array $packageKeys): bool
     {
         return count(array_unique($packageKeys)) === 1;
+    }
+
+    /**
+     * @param list<MissingTranslation> $missingTranslations
+     */
+    private function sortMissingTranslations(array &$missingTranslations): void
+    {
+        usort(
+            $missingTranslations,
+            fn (MissingTranslation $a, MissingTranslation $b) => [$a->locale, $a->key->packageKey, $a->key->sourceName, $a->key->identifier]
+                <=> [$b->locale, $b->key->packageKey, $b->key->sourceName, $b->key->identifier]
+        );
+    }
+
+    /**
+     * @param list<CatalogEntry> $entries
+     */
+    private function sortCatalogEntries(array &$entries): void
+    {
+        usort(
+            $entries,
+            fn (CatalogEntry $a, CatalogEntry $b) => [$a->locale, $a->packageKey, $a->sourceName, $a->identifier]
+                <=> [$b->locale, $b->packageKey, $b->sourceName, $b->identifier]
+        );
     }
 
     private function colorize(string $value, int ...$styles): string
