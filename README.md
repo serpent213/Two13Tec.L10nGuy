@@ -30,6 +30,7 @@ Run the commands from the project root (defaults to `Development` context). Comm
 - `./flow l10n:format --check` shares the same filters (`--package`, `--source`, `--path`, `--locales`) and exits non-zero when a catalog would be rewritten (without touching the files). Drop `--check` to re-render the catalogs in place.
 - `--update` for `l10n:scan` creates missing entries via the catalog writer. Without `--update` the command is read-only.
 - `--delete` for `l10n:unused` removes unused `<trans-unit>` nodes. Without `--delete` the command only reports unused entries.
+- `--quiet` suppresses the table output for `l10n:scan` / `l10n:unused`; `--quieter` hides all stdout output while still emitting warnings/errors on stderr.
 - Exit codes: `0` clean, `5` missing translations, `6` unused translations (unless deleted), `8` catalogs need formatting (from `--check`), `7` fatal failure.
 
 See `Documentation/Architecture.rst` for the full architecture guide, data model notes, and extension points.

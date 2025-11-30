@@ -17,8 +17,8 @@ namespace Two13Tec\L10nGuy\Tests\Functional;
 use Neos\Flow\Cli\ConsoleOutput;
 use Neos\Flow\Cli\Exception\StopCommandException;
 use Neos\Flow\Cli\Response as CliResponse;
-use Symfony\Component\Console\Output\BufferedOutput;
 use Two13Tec\L10nGuy\Command\L10nCommandController;
+use Two13Tec\L10nGuy\Tests\Functional\BufferedConsoleOutput;
 
 final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
 {
@@ -124,8 +124,37 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
     }
 
     /**
+     * @test
+     */
+    public function scanCommandQuietSuppressesTableButKeepsWarnings(): void
+    {
+        [$output, $exitCode] = $this->runScan([
+            'quiet' => true,
+        ]);
+
+        self::assertSame(5, $exitCode);
+        self::assertStringNotContainsString('Locale \"', $output);
+        self::assertStringContainsString('Prepared scan for', $output);
+        self::assertStringContainsString('Placeholder warnings', $output);
+    }
+
+    /**
+     * @test
+     */
+    public function scanCommandQuieterDisablesStdout(): void
+    {
+        [$output, $exitCode, $stderr] = $this->runScan([
+            'quieter' => true,
+        ]);
+
+        self::assertSame(5, $exitCode);
+        self::assertSame('', trim($output));
+        self::assertStringContainsString('placeholderWarning', $stderr);
+    }
+
+    /**
      * @param array<string, mixed> $overrides
-     * @return array{string, int}
+     * @return array{string, int, string}
      */
     private function runScan(array $overrides = []): array
     {
@@ -138,6 +167,8 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
             'format' => null,
             'update' => null,
             'ignorePlaceholder' => null,
+            'quiet' => null,
+            'quieter' => null,
         ], $overrides);
 
         try {
@@ -148,24 +179,28 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
                 $arguments['locales'],
                 $arguments['format'],
                 $arguments['update'],
-                $arguments['ignorePlaceholder']
+                $arguments['ignorePlaceholder'],
+                null,
+                $arguments['quiet'],
+                $arguments['quieter']
             );
         } catch (StopCommandException) {
         }
 
-        return [$buffer->fetch(), $response->getExitCode()];
+        return [$buffer->fetch(), $response->getExitCode(), $buffer->fetchErrorOutput()];
     }
 
     /**
-     * @return array{L10nCommandController, BufferedOutput, CliResponse}
+     * @return array{L10nCommandController, BufferedConsoleOutput, CliResponse}
      */
     private function bootstrapCommand(): array
     {
         /** @var L10nCommandController $command */
         $command = $this->objectManager->get(L10nCommandController::class);
-        $buffer = new BufferedOutput();
+        $buffer = new BufferedConsoleOutput();
         $consoleOutput = new ConsoleOutput();
         $consoleOutput->setOutput($buffer);
+        $consoleOutput->getOutput()->setErrorOutput($buffer->getErrorOutput());
         $this->setProtectedProperty($command, 'output', $consoleOutput);
 
         $response = new CliResponse();

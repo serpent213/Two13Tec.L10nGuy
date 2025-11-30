@@ -95,6 +95,8 @@ class L10nCommandController extends CommandController
      * @param bool|null $update Write missing catalog entries to XLF files
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
+     * @param bool|null $quiet Suppress table output
+     * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
      */
     public function scanCommand(
         ?string $package = null,
@@ -104,7 +106,9 @@ class L10nCommandController extends CommandController
         ?string $format = null,
         ?bool $update = null,
         ?bool $ignorePlaceholder = null,
-        ?bool $setNeedsReview = null
+        ?bool $setNeedsReview = null,
+        ?bool $quiet = null,
+        ?bool $quieter = null
     ): void {
         $configuration = $this->scanConfigurationFactory->createFromCliOptions([
             'package' => $package,
@@ -115,10 +119,12 @@ class L10nCommandController extends CommandController
             'update' => $update,
             'ignorePlaceholder' => $ignorePlaceholder,
             'setNeedsReview' => $setNeedsReview,
+            'quiet' => $quiet,
+            'quieter' => $quieter,
         ]);
 
         $isJson = $configuration->format === 'json';
-        if (!$isJson) {
+        if (!$isJson && !$configuration->quieter) {
             $this->outputLine(
                 'Prepared scan for %s (locales: %s, format: %s, update: %s).',
                 [
@@ -136,7 +142,7 @@ class L10nCommandController extends CommandController
         $catalogIndex = $this->catalogIndexBuilder->build($configuration);
         $scanResult = $this->scanResultBuilder->build($configuration, $referenceIndex, $catalogIndex);
 
-        if (!$isJson) {
+        if (!$isJson && !$configuration->quieter) {
             $this->outputLine(
                 'Reference index: %d unique (%d duplicates flagged across %d occurrences).',
                 [
@@ -151,11 +157,11 @@ class L10nCommandController extends CommandController
 
         if ($configuration->update) {
             $mutations = $this->catalogMutationFactory->fromScanResult($scanResult);
-            if (!$isJson && $mutations === []) {
+            if (!$isJson && !$configuration->quieter && $mutations === []) {
                 $this->outputLine('No catalog entries need to be created.');
             } elseif ($mutations !== []) {
                 $touched = $this->catalogWriter->write($mutations, $catalogIndex, $configuration);
-                if (!$isJson) {
+                if (!$isJson && !$configuration->quieter) {
                     if ($touched === []) {
                         $this->outputLine('Catalog writer did not touch any files.');
                     } else {
@@ -182,6 +188,8 @@ class L10nCommandController extends CommandController
      * @param string|null $locales Optional comma separated locale list (defaults to configured locales)
      * @param string|null $format Output format: table (default) or json
      * @param bool|null $delete Delete unused catalog entries
+     * @param bool|null $quiet Suppress table output
+     * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
      */
     public function unusedCommand(
         ?string $package = null,
@@ -189,7 +197,9 @@ class L10nCommandController extends CommandController
         ?string $path = null,
         ?string $locales = null,
         ?string $format = null,
-        ?bool $delete = null
+        ?bool $delete = null,
+        ?bool $quiet = null,
+        ?bool $quieter = null
     ): void {
         $configuration = $this->scanConfigurationFactory->createFromCliOptions([
             'package' => $package,
@@ -198,10 +208,12 @@ class L10nCommandController extends CommandController
             'locales' => $locales,
             'format' => $format,
             'update' => $delete,
+            'quiet' => $quiet,
+            'quieter' => $quieter,
         ]);
 
         $isJson = $configuration->format === 'json';
-        if (!$isJson) {
+        if (!$isJson && !$configuration->quieter) {
             $this->outputLine(
                 'Prepared unused sweep for %s (locales: %s, format: %s, delete: %s).',
                 [
@@ -221,10 +233,10 @@ class L10nCommandController extends CommandController
 
         $this->logCatalogDiagnostics($catalogIndex);
 
-        if ($configuration->format === 'json') {
+        if ($configuration->format === 'json' && !$configuration->quieter) {
             $this->output($this->renderUnusedJson($unusedEntries, $referenceIndex, $catalogIndex));
             $this->outputLine();
-        } else {
+        } elseif (!$configuration->quiet && !$configuration->quieter) {
             $this->output($this->renderUnusedTable($unusedEntries));
             $this->outputLine();
         }
@@ -232,7 +244,7 @@ class L10nCommandController extends CommandController
         if ($configuration->update && $unusedEntries !== []) {
             $touched = $this->catalogWriter->deleteEntries($unusedEntries, $configuration);
 
-            if (!$isJson) {
+            if (!$isJson && !$configuration->quieter) {
                 if ($touched === []) {
                     $this->outputLine('No catalog entries were deleted.');
                 } else {
@@ -368,48 +380,62 @@ class L10nCommandController extends CommandController
         }
 
         if ($configuration->format === 'json') {
-            $this->output($this->renderScanJson($scanResult, $configuration));
-            $this->outputLine();
+            if (!$configuration->quieter) {
+                $this->output($this->renderScanJson($scanResult, $configuration));
+                $this->outputLine();
+            }
             return;
         }
 
-        $this->output($this->renderScanTable($scanResult));
-        $this->outputLine();
+        if (!$configuration->quiet && !$configuration->quieter) {
+            $this->output($this->renderScanTable($scanResult));
+            $this->outputLine();
+        }
 
-        if (!$configuration->ignorePlaceholderWarnings && $scanResult->placeholderMismatches !== []) {
+        if ($configuration->ignorePlaceholderWarnings || $scanResult->placeholderMismatches === []) {
+            return;
+        }
+
+        if (!$configuration->quieter) {
             $this->outputLine('Placeholder warnings:');
-            foreach ($scanResult->placeholderMismatches as $warning) {
-                $this->outputLine(
-                    ' - [%s] %s / %s / %s missing {%s} (%s)',
-                    [
-                        $warning->locale,
-                        $warning->key->packageKey,
-                        $warning->key->sourceName,
-                        $warning->key->identifier,
-                        implode(', ', $warning->missingPlaceholders),
-                        $this->relativePath($warning->reference->filePath) . ':' . $warning->reference->lineNumber,
-                    ]
-                );
-                $this->logger->warning(
-                    sprintf(
-                        'Placeholder mismatch for %s:%s:%s (%s)',
-                        $warning->key->packageKey,
-                        $warning->key->sourceName,
-                        $warning->key->identifier,
-                        $warning->locale
-                    ),
-                    array_merge(
-                        [
-                            'missing' => $warning->missingPlaceholders,
-                            'reference' => $warning->referencePlaceholders,
-                            'catalog' => $warning->catalogPlaceholders,
-                            'file' => $warning->reference->filePath,
-                            'line' => $warning->reference->lineNumber,
-                        ],
-                        LogEnvironment::fromMethodName(__METHOD__)
-                    )
-                );
+        }
+
+        foreach ($scanResult->placeholderMismatches as $warning) {
+            $message = sprintf(
+                ' - [%s] %s / %s / %s missing {%s} (%s)',
+                $warning->locale,
+                $warning->key->packageKey,
+                $warning->key->sourceName,
+                $warning->key->identifier,
+                implode(', ', $warning->missingPlaceholders),
+                $this->relativePath($warning->reference->filePath) . ':' . $warning->reference->lineNumber
+            );
+
+            if ($configuration->quieter) {
+                $this->writeToErrorOutput($message);
+            } else {
+                $this->outputLine($message);
             }
+
+            $this->logger->warning(
+                sprintf(
+                    'Placeholder mismatch for %s:%s:%s (%s)',
+                    $warning->key->packageKey,
+                    $warning->key->sourceName,
+                    $warning->key->identifier,
+                    $warning->locale
+                ),
+                array_merge(
+                    [
+                        'missing' => $warning->missingPlaceholders,
+                        'reference' => $warning->referencePlaceholders,
+                        'catalog' => $warning->catalogPlaceholders,
+                        'file' => $warning->reference->filePath,
+                        'line' => $warning->reference->lineNumber,
+                    ],
+                    LogEnvironment::fromMethodName(__METHOD__)
+                )
+            );
         }
 
     }
@@ -778,6 +804,34 @@ class L10nCommandController extends CommandController
             fn (CatalogEntry $a, CatalogEntry $b) => [$a->locale, $a->packageKey, $a->sourceName, $a->identifier]
                 <=> [$b->locale, $b->packageKey, $b->sourceName, $b->identifier]
         );
+    }
+
+    private function writeToErrorOutput(string $message): void
+    {
+        $messageWithNewline = $message . PHP_EOL;
+
+        $errorOutput = null;
+        if (is_object($this->output) && method_exists($this->output, 'getErrorOutput')) {
+            $errorOutput = $this->output->getErrorOutput();
+        }
+        if ($errorOutput === null && is_object($this->output) && method_exists($this->output, 'getOutput')) {
+            $rawOutput = $this->output->getOutput();
+            if (is_object($rawOutput) && method_exists($rawOutput, 'getErrorOutput')) {
+                $errorOutput = $rawOutput->getErrorOutput();
+            }
+        }
+
+        if ($errorOutput !== null) {
+            $errorOutput->write($messageWithNewline);
+            return;
+        }
+
+        if (defined('STDERR')) {
+            fwrite(STDERR, $messageWithNewline);
+            return;
+        }
+
+        $this->outputLine($message);
     }
 
     private function colorize(string $value, int ...$styles): string

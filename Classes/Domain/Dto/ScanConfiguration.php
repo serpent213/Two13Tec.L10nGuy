@@ -37,6 +37,8 @@ final readonly class ScanConfiguration
         public bool $setNeedsReview = true,
         public bool $ignorePlaceholderWarnings = false,
         public array $meta = [],
+        public bool $quiet = false,
+        public bool $quieter = false,
     ) {
     }
 }

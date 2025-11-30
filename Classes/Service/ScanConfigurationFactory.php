@@ -92,6 +92,8 @@ final class ScanConfigurationFactory
         $update = (bool)($cliOptions['update'] ?? false);
         $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
         $setNeedsReview = $this->resolveBooleanOption($cliOptions['setNeedsReview'] ?? null, $this->defaultSetNeedsReview);
+        $quiet = (bool)($cliOptions['quiet'] ?? false);
+        $quieter = (bool)($cliOptions['quieter'] ?? false);
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
         $paths = $this->normalizeList($paths);
@@ -115,7 +117,9 @@ final class ScanConfigurationFactory
             $ignorePlaceholderWarnings,
             [
                 'cli' => $cliOptions,
-            ]
+            ],
+            $quiet || $quieter,
+            $quieter
         );
     }
 

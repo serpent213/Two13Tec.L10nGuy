@@ -139,8 +139,8 @@ Command Surface
 
 ``L10nCommandController`` orchestrates the pipeline::
 
-   ./flow l10n:scan   [--package ...] [--locales ...] [--update] [--format table|json]
-   ./flow l10n:unused [--package ...] [--locales ...] [--delete] [--format table|json]
+   ./flow l10n:scan   [--package ...] [--locales ...] [--update] [--format table|json] [--quiet] [--quieter]
+   ./flow l10n:unused [--package ...] [--locales ...] [--delete] [--format table|json] [--quiet] [--quieter]
    ./flow l10n:format [--check]
 
 Exit codes are configurable via ``Two13Tec.L10nGuy.exitCodes``:

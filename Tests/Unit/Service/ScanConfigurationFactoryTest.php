@@ -191,4 +191,23 @@ final class ScanConfigurationFactoryTest extends TestCase
         $stringConfiguration = $factory->createFromCliOptions(['setNeedsReview' => 'false']);
         self::assertFalse($stringConfiguration->setNeedsReview);
     }
+
+    /**
+     * @test
+     */
+    public function quietFlagsAreRespected(): void
+    {
+        $factory = new ScanConfigurationFactory(
+            flowI18nSettings: [],
+            defaultFormat: 'table'
+        );
+
+        $quietConfiguration = $factory->createFromCliOptions(['quiet' => true]);
+        self::assertTrue($quietConfiguration->quiet);
+        self::assertFalse($quietConfiguration->quieter);
+
+        $quieterConfiguration = $factory->createFromCliOptions(['quieter' => true]);
+        self::assertTrue($quieterConfiguration->quiet, 'quieter should imply quiet');
+        self::assertTrue($quieterConfiguration->quieter);
+    }
 }
