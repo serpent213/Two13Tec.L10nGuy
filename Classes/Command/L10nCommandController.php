@@ -740,11 +740,9 @@ class L10nCommandController extends CommandController
             $relative = substr($relative, strlen($prefix));
         }
 
-        if ($lineNumber !== null) {
-            return sprintf('%s:%d', $relative, $lineNumber);
-        }
+        $location = $lineNumber !== null ? sprintf('%s:%d', $relative, $lineNumber) : $relative;
 
-        return $relative;
+        return implode(PHP_EOL, ['', $location]);
     }
 
     /**

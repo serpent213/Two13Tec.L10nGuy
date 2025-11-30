@@ -149,7 +149,7 @@ class Table
                 }
             }
             $key = \trim((string)$key);
-            $row[$key] = \trim($value);
+            $row[$key] = \trim($value, " \t\0\x0B\r");
         }
         $this->rows[] = $row;
         return $this;
