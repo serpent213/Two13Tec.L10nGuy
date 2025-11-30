@@ -43,10 +43,13 @@ final class YamlReferenceCollectorTest extends TestCase
         self::assertSame('NodeTypes.Content.ContactForm', $first->sourceName);
         self::assertSame('ui.label', $first->identifier);
         self::assertSame('yaml', $first->context);
+        self::assertNotNull($first->nodeTypeContext);
+        self::assertStringContainsString('Two13Tec.Senegal:Content.ContactForm', $first->nodeTypeContext);
 
         $groupReference = $this->findReference($references, 'groups.email');
         self::assertNotNull($groupReference);
         self::assertSame('groups.email', $groupReference->identifier);
+        self::assertSame($first->nodeTypeContext, $groupReference->nodeTypeContext);
 
         $propertyReference = $this->findReference($references, 'properties.subject');
         self::assertNotNull($propertyReference);

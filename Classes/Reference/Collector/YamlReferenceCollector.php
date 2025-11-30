@@ -41,6 +41,7 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
 
         $references = [];
         $stack = [];
+        $nodeTypeContexts = $this->extractNodeTypeContexts($contents);
 
         foreach ($contents as $index => $line) {
             $trimmed = trim($line);
@@ -70,7 +71,12 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
             }
 
             if ($normalizedValue === 'i18n' && $key === 'label') {
-                $reference = $this->referenceFromPath($path, $file->getPathname(), $index + 1);
+                $reference = $this->referenceFromPath(
+                    $path,
+                    $file->getPathname(),
+                    $index + 1,
+                    $nodeTypeContexts
+                );
                 if ($reference !== null) {
                     $references[] = $reference;
                 }
@@ -85,7 +91,10 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
         return $references;
     }
 
-    private function referenceFromPath(array $path, string $filePath, int $lineNumber): ?TranslationReference
+    /**
+     * @param array<string, string> $nodeTypeContexts
+     */
+    private function referenceFromPath(array $path, string $filePath, int $lineNumber, array $nodeTypeContexts): ?TranslationReference
     {
         if ($path === []) {
             return null;
@@ -96,6 +105,7 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
             return null;
         }
 
+        $nodeTypeContext = $nodeTypeContexts[$nodeType] ?? null;
         [$packageKey] = explode(':', $nodeType, 2);
         $identifier = $this->deriveIdentifier($path);
         if ($identifier === null) {
@@ -117,7 +127,9 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
             filePath: $filePath,
             lineNumber: $lineNumber,
             fallback: null,
-            placeholders: []
+            placeholders: [],
+            isPlural: false,
+            nodeTypeContext: $nodeTypeContext
         );
     }
 
@@ -174,5 +186,42 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
     private function countIndent(string $line): int
     {
         return strlen($line) - strlen(ltrim($line, ' '));
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array<string, string>
+     */
+    private function extractNodeTypeContexts(array $lines): array
+    {
+        $contexts = [];
+        $currentName = null;
+        $startIndex = null;
+
+        foreach ($lines as $index => $line) {
+            $trimmed = trim($line);
+            $indent = $this->countIndent($line);
+
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if ($indent === 0 && preg_match('/^("([^"]+)"|\'([^\']+)\'|([^:]+)):/', $trimmed, $matches)) {
+                $nodeTypeName = $this->normalizeKey($matches[1]);
+
+                if ($currentName !== null && $startIndex !== null) {
+                    $contexts[$currentName] = implode("\n", array_slice($lines, $startIndex, $index - $startIndex));
+                }
+
+                $currentName = $nodeTypeName;
+                $startIndex = $index;
+            }
+        }
+
+        if ($currentName !== null && $startIndex !== null) {
+            $contexts[$currentName] = implode("\n", array_slice($lines, $startIndex));
+        }
+
+        return $contexts;
     }
 }

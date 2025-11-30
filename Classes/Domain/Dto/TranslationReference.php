@@ -39,6 +39,7 @@ final readonly class TranslationReference
         public ?string $fallback = null,
         public array $placeholders = [],
         public bool $isPlural = false,
+        public ?string $nodeTypeContext = null,
     ) {
     }
 
