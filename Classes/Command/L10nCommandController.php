@@ -439,19 +439,26 @@ class L10nCommandController extends CommandController
             return 'No missing translations detected.';
         }
 
-        $table = new Table();
-        $table->setHeaderStyle();
-        $table->setBorderStyle();
+        $table = $this->createStyledTable();
+        $hidePackagePrefix = $this->isSinglePackage(
+            array_map(
+                fn (MissingTranslation $missing) => $missing->key->packageKey,
+                $scanResult->missingTranslations
+            )
+        );
 
         foreach ($scanResult->missingTranslations as $missing) {
             $reference = $missing->reference;
             $table->row([
                 'Locale' => $missing->locale,
-                'Package' => $missing->key->packageKey,
-                'Source' => $missing->key->sourceName,
+                'Source' => $this->formatSourceColumn(
+                    $missing->key->packageKey,
+                    $missing->key->sourceName,
+                    $hidePackagePrefix
+                ),
                 'Id' => $missing->key->identifier,
                 'Issue' => 'missing',
-                'File' => $this->relativePath($reference->filePath) . ':' . $reference->lineNumber,
+                'File' => $this->formatFileColumn($reference->filePath, $reference->lineNumber),
             ]);
         }
 
@@ -551,18 +558,25 @@ class L10nCommandController extends CommandController
             return 'No unused translations detected.';
         }
 
-        $table = new Table();
-        $table->setHeaderStyle();
-        $table->setBorderStyle();
+        $table = $this->createStyledTable();
+        $hidePackagePrefix = $this->isSinglePackage(
+            array_map(
+                fn (CatalogEntry $entry) => $entry->packageKey,
+                $unusedEntries
+            )
+        );
 
         foreach ($unusedEntries as $entry) {
             $table->row([
                 'Locale' => $entry->locale,
-                'Package' => $entry->packageKey,
-                'Source' => $entry->sourceName,
+                'Source' => $this->formatSourceColumn(
+                    $entry->packageKey,
+                    $entry->sourceName,
+                    $hidePackagePrefix
+                ),
                 'Id' => $entry->identifier,
                 'Issue' => 'unused',
-                'File' => $this->relativePath($entry->filePath),
+                'File' => $this->formatFileColumn($entry->filePath),
             ]);
         }
 
@@ -677,6 +691,50 @@ class L10nCommandController extends CommandController
                 }
             }
         }
+    }
+
+    private function createStyledTable(): Table
+    {
+        $table = new Table();
+        $table->setBorderStyle(Table::COLOR_BLUE);
+        $table->setCellStyle(Table::COLOR_GREEN);
+        $table->setHeaderStyle(Table::COLOR_RED, Table::BOLD);
+        $table->setColumnCellStyle('Id', Table::ITALIC, Table::COLOR_LIGHT_YELLOW);
+        $table->setColumnCellStyle('Email', Table::BOLD, Table::ITALIC);
+
+        return $table;
+    }
+
+    private function formatSourceColumn(string $packageKey, string $sourceName, bool $hidePackagePrefix): string
+    {
+        if ($hidePackagePrefix) {
+            return $sourceName;
+        }
+
+        return sprintf('%s:%s', $packageKey, $sourceName);
+    }
+
+    private function formatFileColumn(string $filePath, ?int $lineNumber = null): string
+    {
+        $relative = $this->relativePath($filePath);
+        $prefix = 'DistributionPackages/Two13Tec.Senegal/';
+        if (str_starts_with($relative, $prefix)) {
+            $relative = substr($relative, strlen($prefix));
+        }
+
+        if ($lineNumber !== null) {
+            return sprintf('%s:%d', $relative, $lineNumber);
+        }
+
+        return $relative;
+    }
+
+    /**
+     * @param array<string> $packageKeys
+     */
+    private function isSinglePackage(array $packageKeys): bool
+    {
+        return count(array_unique($packageKeys)) === 1;
     }
 
     private function relativePath(string $path): string
