@@ -14,11 +14,11 @@ namespace Two13Tec\L10nGuy\Command;
  * source code.
  */
 
-use InitPHP\CLITable\Table;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Psr\Log\LoggerInterface;
+use Two13Tec\L10nGuy\Cli\Table\Table;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
@@ -451,13 +451,12 @@ class L10nCommandController extends CommandController
             $reference = $missing->reference;
             $table->row([
                 'Locale' => $missing->locale,
-                'Source' => $this->formatSourceColumn(
+                'Source' => $this->formatSourceCell(
                     $missing->key->packageKey,
                     $missing->key->sourceName,
+                    $missing->key->identifier,
                     $hidePackagePrefix
                 ),
-                'Id' => $missing->key->identifier,
-                'Issue' => 'missing',
                 'File' => $this->formatFileColumn($reference->filePath, $reference->lineNumber),
             ]);
         }
@@ -569,13 +568,12 @@ class L10nCommandController extends CommandController
         foreach ($unusedEntries as $entry) {
             $table->row([
                 'Locale' => $entry->locale,
-                'Source' => $this->formatSourceColumn(
+                'Source' => $this->formatSourceCell(
                     $entry->packageKey,
                     $entry->sourceName,
+                    $entry->identifier,
                     $hidePackagePrefix
                 ),
-                'Id' => $entry->identifier,
-                'Issue' => 'unused',
                 'File' => $this->formatFileColumn($entry->filePath),
             ]);
         }
@@ -699,19 +697,22 @@ class L10nCommandController extends CommandController
         $table->setBorderStyle(Table::COLOR_BLUE);
         $table->setCellStyle(Table::COLOR_GREEN);
         $table->setHeaderStyle(Table::COLOR_RED, Table::BOLD);
-        $table->setColumnCellStyle('Id', Table::ITALIC, Table::COLOR_LIGHT_YELLOW);
-        $table->setColumnCellStyle('Email', Table::BOLD, Table::ITALIC);
 
         return $table;
     }
 
-    private function formatSourceColumn(string $packageKey, string $sourceName, bool $hidePackagePrefix): string
-    {
-        if ($hidePackagePrefix) {
-            return $sourceName;
-        }
+    private function formatSourceCell(
+        string $packageKey,
+        string $sourceName,
+        string $identifier,
+        bool $hidePackagePrefix
+    ): string {
+        $sourceLine = $hidePackagePrefix ? $sourceName : sprintf('%s:%s', $packageKey, $sourceName);
 
-        return sprintf('%s:%s', $packageKey, $sourceName);
+        return implode(PHP_EOL, [
+            $this->colorize($sourceLine, Table::COLOR_DARK_GRAY),
+            $this->colorize($identifier, Table::ITALIC, Table::COLOR_LIGHT_YELLOW),
+        ]);
     }
 
     private function formatFileColumn(string $filePath, ?int $lineNumber = null): string
@@ -735,6 +736,15 @@ class L10nCommandController extends CommandController
     private function isSinglePackage(array $packageKeys): bool
     {
         return count(array_unique($packageKeys)) === 1;
+    }
+
+    private function colorize(string $value, int ...$styles): string
+    {
+        if ($styles === []) {
+            return $value;
+        }
+
+        return sprintf("\e[%sm%s\e[0m", implode(';', $styles), $value);
     }
 
     private function relativePath(string $path): string

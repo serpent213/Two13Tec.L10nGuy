@@ -1,23 +1,18 @@
 <?php
-/**
- * Table.php
- *
- * This file is part of CLITable.
- *
- * @author     Muhammet ŞAFAK <info@muhammetsafak.com.tr>
- * @copyright  Copyright © 2022 Muhammet ŞAFAK
- * @license    ./LICENSE  MIT
- * @version    1.0
- * @link       https://www.muhammetsafak.com.tr
- */
 
 declare(strict_types=1);
 
-namespace InitPHP\CLITable;
+namespace Two13Tec\L10nGuy\Cli\Table;
+
+/*
+ * Embedded copy of initphp/cli-table (Table.php).
+ *
+ * Original author: Muhammet SAFAK <info@muhammetsafak.com.tr>
+ * Adapted for Two13Tec.L10nGuy: multi-line cells and ANSI-aware widths.
+ */
 
 class Table
 {
-
     public const COLOR_DEFAULT      = 39;
     public const COLOR_BLACK        = 30;
     public const COLOR_RED          = 31;
@@ -32,7 +27,7 @@ class Table
     public const COLOR_LIGHT_GREEN  = 92;
     public const COLOR_LIGHT_YELLOW = 93;
     public const COLOR_LIGHT_BLUE   = 94;
-    public const COLOR_LIGHT_MAGENTA= 95;
+    public const COLOR_LIGHT_MAGENTA = 95;
     public const COLOR_LIGHT_CYAN   = 96;
     public const COLOR_WHITE        = 97;
 
@@ -49,17 +44,17 @@ class Table
     public const UNDERLINE          = 4;
     public const STRIKETHROUGH      = 9;
 
-    private $headerStyle = [
+    private array $headerStyle = [
         self::BOLD,
     ];
 
-    private $cellStyle = [];
+    private array $cellStyle = [];
 
-    private $borderStyle = [];
+    private array $borderStyle = [];
 
-    private $columnCellStyle = [];
+    private array $columnCellStyle = [];
 
-    private $chars = [
+    private array $chars = [
         'top'          => '═',
         'top-mid'      => '╤',
         'top-left'     => '╔',
@@ -77,14 +72,14 @@ class Table
         'middle'       => '│ ',
     ];
 
-    /** @var array */
-    private $rows = [];
+    /** @var array<int, array<string, string>> */
+    private array $rows = [];
 
     public function __construct()
     {
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->getContent();
     }
@@ -138,18 +133,18 @@ class Table
     {
         $row = [];
         foreach ($assoc as $key => $value) {
-            if(!\is_string($value)){
-                if(\is_object($value)){
+            if (!\is_string($value)) {
+                if (\is_object($value)) {
                     $value = \get_class($value);
-                }elseif (\is_resource($value)) {
+                } elseif (\is_resource($value)) {
                     $value = '[RESOURCE]';
-                }elseif (\is_callable($value)){
+                } elseif (\is_callable($value)) {
                     $value = '[CALLABLE]';
-                }elseif(\is_null($value)){
+                } elseif (\is_null($value)) {
                     $value = '[NULL]';
-                }elseif(\is_bool($value)){
-                    $value = $value === FALSE ? '[FALSE]' : '[TRUE]';
-                }else{
+                } elseif (\is_bool($value)) {
+                    $value = $value === false ? '[FALSE]' : '[TRUE]';
+                } else {
                     $value = (string)$value;
                 }
             }
@@ -168,33 +163,37 @@ class Table
         foreach ($this->rows as $row) {
             $keys = \array_keys($row);
             foreach ($keys as $key) {
-                if(isset($headerData[$key])){
+                if (isset($headerData[$key])) {
                     continue;
                 }
                 $headerData[$key] = $key;
-                $columnLengths[$key] = $this->strlen($key);
+                $columnLengths[$key] = $this->strlenVisible($key);
             }
         }
 
         foreach ($this->rows as $row) {
             foreach ($headerData as $column) {
-                $len = \max($columnLengths[$column], $this->strlen($row[$column]));
-                if($len % 2 !== 0){
-                    ++$len;
+                $cell = $row[$column] ?? '[NULL]';
+                foreach ($this->splitLines($cell) as $line) {
+                    $len = \max($columnLengths[$column], $this->strlenVisible($line));
+                    if ($len % 2 !== 0) {
+                        ++$len;
+                    }
+                    $columnLengths[$column] = $len;
                 }
-                $columnLengths[$column] = $len;
             }
         }
         foreach ($columnLengths as &$length) {
             $length += 4;
         }
+        unset($length);
 
         $res = $this->getTableTopContent($columnLengths)
             . $this->getFormattedRowContent($headerData, $columnLengths, "\e[" . \implode(';', $this->headerStyle) . "m", true)
             . $this->getTableSeparatorContent($columnLengths);
         foreach ($this->rows as $row) {
             foreach ($headerData as $column) {
-                if(!isset($row[$column])){
+                if (!isset($row[$column])) {
                     $row[$column] = '[NULL]';
                 }
             }
@@ -203,28 +202,41 @@ class Table
         return $res . $this->getTableBottomContent($columnLengths);
     }
 
-    private function getFormattedRowContent($data, $lengths, string $format = '', bool $isHeader = false): string
+    private function getFormattedRowContent(array $data, array $lengths, string $format = '', bool $isHeader = false): string
     {
-        $res = $this->getChar('left') . ' ';
-        $rows = [];
+        $res = '';
+        $lines = [];
+        $maxLines = 1;
         foreach ($data as $key => $value) {
-            $customFormat = '';
-            $value = ' ' . $value;
-            $len = $this->strlen($value) - $lengths[$key] + 1;
-            if($isHeader === FALSE && isset($this->columnCellStyle[$key]) && !empty($this->columnCellStyle[$key])){
-                $customFormat = "\e[" . \implode(";", $this->columnCellStyle[$key]) . "m";
-            }
-            $rows[] = ($format !== '' ? $format : '')
-                . ($customFormat !== '' ? $customFormat : '')
-                . $value
-                . ($format !== '' || $customFormat !== '' ? "\e[0m" : '')
-                . \str_repeat(' ', (int)\abs($len));
+            $split = $this->splitLines($value);
+            $lines[$key] = $split;
+            $maxLines = \max($maxLines, \count($split));
         }
-        $res .= \implode($this->getChar('middle'), $rows);
-        return $res . $this->getChar('right') . \PHP_EOL;
+
+        for ($lineIdx = 0; $lineIdx < $maxLines; ++$lineIdx) {
+            $res .= $this->getChar('left') . ' ';
+            $rows = [];
+            foreach ($data as $key => $value) {
+                $customFormat = '';
+                $line = $lines[$key][$lineIdx] ?? '';
+                $line = ' ' . $line;
+                $len = $this->strlenVisible($line) - $lengths[$key] + 1;
+                if ($isHeader === false && isset($this->columnCellStyle[$key]) && $this->columnCellStyle[$key] !== []) {
+                    $customFormat = "\e[" . \implode(';', $this->columnCellStyle[$key]) . "m";
+                }
+                $rows[] = ($format !== '' ? $format : '')
+                    . ($customFormat !== '' ? $customFormat : '')
+                    . $line
+                    . ($format !== '' || $customFormat !== '' ? "\e[0m" : '')
+                    . \str_repeat(' ', (int)\abs($len));
+            }
+            $res .= \implode($this->getChar('middle'), $rows);
+            $res .= $this->getChar('right') . \PHP_EOL;
+        }
+        return $res;
     }
 
-    private function getTableTopContent($lengths): string
+    private function getTableTopContent(array $lengths): string
     {
         $res = $this->getChar('top-left');
         $rows = [];
@@ -235,7 +247,7 @@ class Table
         return  $res . $this->getChar('top-right') . \PHP_EOL;
     }
 
-    private function getTableBottomContent($lengths): string
+    private function getTableBottomContent(array $lengths): string
     {
         $res = $this->getChar('bottom-left');
         $rows = [];
@@ -246,7 +258,7 @@ class Table
         return $res . $this->getChar('bottom-right') . \PHP_EOL;
     }
 
-    private function getTableSeparatorContent($lengths): string
+    private function getTableSeparatorContent(array $lengths): string
     {
         $res = $this->getChar('left-mid');
         $rows = [];
@@ -259,25 +271,30 @@ class Table
 
     private function getChar(string $char, int $len = 1): string
     {
-        if(!isset($this->chars[$char])){
+        if (!isset($this->chars[$char])) {
             return '';
         }
-        $res = (empty($this->borderStyle) ? '' : "\e[" . \implode(";", $this->borderStyle) . "m");
-        if($len === 1){
-            $res .= $this->chars[$char];;
-        }else{
+        $res = $this->borderStyle === [] ? '' : "\e[" . \implode(';', $this->borderStyle) . "m";
+        if ($len === 1) {
+            $res .= $this->chars[$char];
+        } else {
             $res .= \str_repeat($this->chars[$char], $len);
         }
-        $res .= empty($this->borderStyle) ? '' : "\e[0m";
+        $res .= $this->borderStyle === [] ? '' : "\e[0m";
         return $res;
     }
 
-    private function strlen(string $str): int
+    private function splitLines(string $value): array
     {
-        if(!\function_exists('mb_strlen')){
-            return \strlen($str);
-        }
-        return \mb_strlen($str);
+        return \preg_split('/\r\n|\r|\n/', $value) ?: [''];
     }
 
+    private function strlenVisible(string $str): int
+    {
+        $visible = \preg_replace('/\e\\[[0-9;]*m/', '', $str);
+        if (!\function_exists('mb_strlen')) {
+            return \strlen($visible);
+        }
+        return \mb_strlen($visible ?: '');
+    }
 }
