@@ -23,6 +23,7 @@ use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
+use Two13Tec\L10nGuy\Domain\Dto\TokenEstimation;
 use Two13Tec\L10nGuy\Domain\Dto\TranslationContext;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
@@ -49,6 +50,9 @@ final class LlmTranslationService
     protected PlaceholderValidator $placeholderValidator;
 
     #[Flow\Inject]
+    protected TokenEstimator $tokenEstimator;
+
+    #[Flow\Inject]
     protected LoggerInterface $logger;
 
     /**
@@ -69,13 +73,14 @@ final class LlmTranslationService
             return $mutations;
         }
 
+        $systemPrompt = $this->promptBuilder->buildSystemPrompt($config);
+
         if ($config->dryRun) {
-            $this->logDryRun($grouped, $config);
+            $this->logDryRun($grouped, $scanResult, $config, $systemPrompt);
             return $mutations;
         }
 
         $chain = $this->providerFactory->create();
-        $systemPrompt = $this->promptBuilder->buildSystemPrompt($config);
         $batchSize = $this->normalizeBatchSize($config);
 
         foreach (array_chunk($grouped, $batchSize) as $batch) {
@@ -83,7 +88,7 @@ final class LlmTranslationService
             $messages = $this->buildMessages($contexts, $systemPrompt);
 
             try {
-                $response = $chain->call($messages);
+                $response = $chain->call($messages['messages']);
                 $parsed = $this->responseParser->parse($response->getContent());
             } catch (\Throwable $exception) {
                 $this->logger->warning(
@@ -169,8 +174,9 @@ final class LlmTranslationService
 
     /**
      * @param list<array{missing: MissingTranslation, context: TranslationContext, targetLanguages: list<string>}> $items
+     * @return array{messages: MessageBag, userPrompt: string}
      */
-    private function buildMessages(array $items, string $systemPrompt): MessageBag
+    private function buildMessages(array $items, string $systemPrompt): array
     {
         $userPrompt = count($items) === 1
             ? $this->promptBuilder->buildUserPrompt(
@@ -181,10 +187,13 @@ final class LlmTranslationService
             )
             : $this->promptBuilder->buildBatchPrompt($this->mapItemsForPrompt($items));
 
-        return new MessageBag(
-            Message::forSystem($systemPrompt),
-            Message::ofUser($userPrompt)
-        );
+        return [
+            'messages' => new MessageBag(
+                Message::forSystem($systemPrompt),
+                Message::ofUser($userPrompt)
+            ),
+            'userPrompt' => $userPrompt,
+        ];
     }
 
     /**
@@ -319,21 +328,89 @@ final class LlmTranslationService
     /**
      * @param list<array{mutations: list<CatalogMutation>, missing: MissingTranslation}> $groups
      */
-    private function logDryRun(array $groups, LlmConfiguration $config): void
+    private function logDryRun(array $groups, ScanResult $scanResult, LlmConfiguration $config, string $systemPrompt): void
     {
-        $translationCount = array_sum(
-            array_map(static fn (array $group): int => count($group['mutations']), $groups)
-        );
+        $batchSize = $this->normalizeBatchSize($config);
+        $calls = [];
+
+        foreach (array_chunk($groups, $batchSize) as $batch) {
+            $contexts = $this->buildContexts($batch, $scanResult, $config);
+            $messages = $this->buildMessages($contexts, $systemPrompt);
+            $translationsInBatch = $this->countTranslations($batch);
+
+            $calls[] = [
+                'userPrompt' => $messages['userPrompt'],
+                'translations' => $translationsInBatch,
+            ];
+        }
+
+        $estimation = $this->tokenEstimator->estimate($calls, count($groups), $systemPrompt);
+
+        $this->outputDryRunReport($estimation, $config, $batchSize);
 
         $this->logger->info(
-            sprintf(
-                'LLM dry run: %d translation ids, %d total translations, batch size %d (max %d).',
-                count($groups),
-                $translationCount,
-                $config->batchSize,
-                $config->maxBatchSize
-            ),
-            LogEnvironment::fromMethodName(__METHOD__)
+            'LLM dry-run estimation completed.',
+            array_merge(
+                [
+                    'uniqueTranslationIds' => $estimation->uniqueTranslationIds,
+                    'translations' => $estimation->translationCount,
+                    'inputTokens' => $estimation->estimatedInputTokens,
+                    'outputTokens' => $estimation->estimatedOutputTokens,
+                    'peakTokensPerCall' => $estimation->peakTokensPerCall,
+                    'batchSize' => $batchSize,
+                    'maxTokensPerCall' => $config->maxTokensPerCall,
+                ],
+                LogEnvironment::fromMethodName(__METHOD__)
+            )
         );
+    }
+
+    /**
+     * @param list<array{mutations: list<CatalogMutation>, missing: MissingTranslation}> $batch
+     */
+    private function countTranslations(array $batch): int
+    {
+        return array_sum(
+            array_map(static fn (array $group): int => count($group['mutations']), $batch)
+        );
+    }
+
+    private function outputDryRunReport(TokenEstimation $estimation, LlmConfiguration $config, int $batchSize): void
+    {
+        $lines = [
+            '',
+            '→ Analysing translation workload (LLM dry-run)...',
+            '',
+            sprintf('  Unique translation IDs:      %d', $estimation->uniqueTranslationIds),
+            sprintf('  Total translations:          %d', $estimation->translationCount),
+            sprintf('  Estimated input tokens:      ~%s', number_format($estimation->estimatedInputTokens)),
+            sprintf('  Estimated output tokens:     ~%s', number_format($estimation->estimatedOutputTokens)),
+            sprintf(
+                '  Batch configuration:         %d ID%s per call = %d API call%s',
+                $batchSize,
+                $batchSize === 1 ? '' : 's',
+                $estimation->apiCallCount,
+                $estimation->apiCallCount === 1 ? '' : 's'
+            ),
+        ];
+
+        if ($config->maxTokensPerCall > 0) {
+            $lines[] = sprintf(
+                '  Configured max tokens/call:  %s',
+                number_format($config->maxTokensPerCall)
+            );
+            $lines[] = sprintf(
+                '  Peak estimated tokens/call:  ~%s',
+                number_format($estimation->peakTokensPerCall)
+            );
+
+            if ($estimation->exceedsLimit($config->maxTokensPerCall)) {
+                $lines[] = '  WARNING: estimated tokens per call exceed the configured limit.';
+            }
+        }
+
+        $lines[] = '';
+
+        echo implode(PHP_EOL, $lines);
     }
 }

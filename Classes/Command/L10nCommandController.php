@@ -185,6 +185,13 @@ class L10nCommandController extends CommandController
                         $this->outputLine('! %s', [$exception->getMessage()]);
                         $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
                     }
+
+                    if ($configuration->llm->dryRun) {
+                        if (!$isJson && !$configuration->quieter) {
+                            $this->outputLine('LLM dry-run completed; catalogs were not modified.');
+                        }
+                        return;
+                    }
                 }
 
                 $touched = $this->catalogWriter->write($mutations, $catalogIndex, $configuration);
