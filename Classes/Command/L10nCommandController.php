@@ -224,11 +224,6 @@ class L10nCommandController extends CommandController
         } else {
             $this->output($this->renderUnusedTable($unusedEntries));
             $this->outputLine();
-
-            $duplicateCount = $referenceIndex->duplicateCount();
-            if ($duplicateCount > 0) {
-                $this->outputLine('Duplicate ids detected (%d occurrences).', [$duplicateCount]);
-            }
         }
 
         if ($configuration->update && $unusedEntries !== []) {
@@ -414,10 +409,6 @@ class L10nCommandController extends CommandController
             }
         }
 
-        $duplicateCount = $scanResult->referenceIndex->duplicateCount();
-        if ($duplicateCount > 0) {
-            $this->outputLine('Duplicate ids detected (%d occurrences).', [$duplicateCount]);
-        }
     }
 
     private function resolveScanExitCode(ScanResult $scanResult): int
@@ -474,7 +465,7 @@ class L10nCommandController extends CommandController
             $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
         }
 
-        return implode(PHP_EOL . PHP_EOL, $output);
+        return PHP_EOL . implode(PHP_EOL, $output);
     }
 
     private function renderScanJson(ScanResult $scanResult, ScanConfiguration $configuration): string
@@ -604,7 +595,7 @@ class L10nCommandController extends CommandController
             $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
         }
 
-        return implode(PHP_EOL . PHP_EOL, $output);
+        return PHP_EOL . implode(PHP_EOL, $output);
     }
 
     private function summarizeReferenceDuplicates(ReferenceIndex $referenceIndex): array
