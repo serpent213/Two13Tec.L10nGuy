@@ -33,6 +33,7 @@ Two13Tec:
     tabWidth: 2
     orderById: false
 
+    # Set to null to avoid attribute(s) altogether
     newState: 'needs-review'
     newStateQualifier: null
 

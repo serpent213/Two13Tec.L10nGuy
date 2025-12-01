@@ -11,6 +11,10 @@ Flow CLI localisation companion that keeps Neos translation catalogs in sync wit
 - Shared diagnostics: table or JSON output, deterministic exit codes for CI pipelines, detailed logging of XML parse errors, duplicates, and missing catalogs.
 - Comprehensive fixtures + functional tests mirror real-life components
 
+### Example
+
+![Example screenshot](/Documentation/Images/screenshot.webp)
+
 ## Usage
 
 Run the commands from the project root (defaults to `Development` context). Common options work for both commands:

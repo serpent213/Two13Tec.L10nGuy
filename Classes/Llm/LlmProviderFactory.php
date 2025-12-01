@@ -123,7 +123,7 @@ final class LlmProviderFactory
     {
         if (!class_exists(Chain::class)) {
             throw new LlmUnavailableException(
-                'LLM features require php-llm/llm-chain. Run: composer require php-llm/llm-chain'
+                'LLM features require php-llm/llm-chain. Run: composer require --dev --update-with-all-dependencies php-llm/llm-chain'
             );
         }
     }
