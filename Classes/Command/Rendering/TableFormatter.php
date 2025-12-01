@@ -79,8 +79,15 @@ class TableFormatter
     /**
      * Format a translation cell value
      */
-    public function formatTranslationCell(string $value): string
+    public function formatTranslationCell(array|string $translation): string
     {
+        $value = is_array($translation) ? (string)($translation['value'] ?? '') : (string)$translation;
+        $existing = is_array($translation) ? (bool)($translation['existing'] ?? false) : false;
+
+        if ($existing && $value !== '') {
+            $value = $this->colorize($value, Table::COLOR_DARK_GRAY);
+        }
+
         return implode(PHP_EOL, ['', $value]);
     }
 

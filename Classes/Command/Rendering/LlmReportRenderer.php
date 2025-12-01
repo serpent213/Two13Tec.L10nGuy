@@ -124,8 +124,7 @@ class LlmReportRenderer
 
             foreach ($translatedLocales as $locale) {
                 $translation = $row['translations'][$locale] ?? '';
-                $value = is_array($translation) ? ($translation['value'] ?? '') : $translation;
-                $tableRow[$locale] = $this->tableFormatter->formatTranslationCell($value);
+                $tableRow[$locale] = $this->tableFormatter->formatTranslationCell($translation);
             }
 
             $table->row($tableRow);
