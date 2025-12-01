@@ -42,6 +42,11 @@ use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 use Two13Tec\L10nGuy\Llm\LlmTranslationService;
 use Two13Tec\L10nGuy\Domain\Dto\LlmRunStatistics;
 use Two13Tec\L10nGuy\Utility\ProgressIndicator;
+use Two13Tec\L10nGuy\Command\Rendering\TableFormatter;
+use Two13Tec\L10nGuy\Command\Rendering\LlmReportRenderer;
+use Two13Tec\L10nGuy\Command\Rendering\ScanReportRenderer;
+use Two13Tec\L10nGuy\Command\Rendering\UnusedReportRenderer;
+use Two13Tec\L10nGuy\Utility\PathResolver;
 
 /**
  * Flow CLI controller for `./flow l10n:*`.
@@ -83,6 +88,18 @@ class L10nCommandController extends CommandController
 
     #[Flow\Inject]
     protected LoggerInterface $logger;
+
+    #[Flow\Inject]
+    protected TableFormatter $tableFormatter;
+
+    #[Flow\Inject]
+    protected LlmReportRenderer $llmReportRenderer;
+
+    #[Flow\Inject]
+    protected ScanReportRenderer $scanReportRenderer;
+
+    #[Flow\Inject]
+    protected UnusedReportRenderer $unusedReportRenderer;
 
     /**
      * @var array{
@@ -239,14 +256,14 @@ class L10nCommandController extends CommandController
                         $this->outputLine('Catalog writer did not touch any files.');
                     } else {
                         foreach ($touched as $file) {
-                            $this->outputLine('Touched catalog: %s', [$this->relativePath($file)]);
+                            $this->outputLine('Touched catalog: %s', [PathResolver::relativePath($file)]);
                         }
                     }
                 }
             }
         }
 
-        $exitCode = $this->resolveScanExitCode($scanResult);
+        $exitCode = $this->scanReportRenderer->resolveExitCode($scanResult, $this->exitCodes);
         if ($exitCode !== $this->exitCode(self::EXIT_KEY_SUCCESS, 0)) {
             $this->quit($exitCode);
         }
@@ -408,7 +425,7 @@ class L10nCommandController extends CommandController
                 $this->outputLine('Catalog writer did not touch any files.');
             } else {
                 foreach ($touched as $file) {
-                    $this->outputLine('Touched catalog: %s', [$this->relativePath($file)]);
+                    $this->outputLine('Touched catalog: %s', [PathResolver::relativePath($file)]);
                 }
             }
         }
@@ -469,13 +486,13 @@ class L10nCommandController extends CommandController
         $catalogIndex = $this->catalogIndexBuilder->build($configuration);
         $unusedEntries = $this->findUnusedEntries($catalogIndex, $referenceIndex, $configuration);
 
-        $this->logCatalogDiagnostics($catalogIndex);
+        $this->unusedReportRenderer->logDiagnostics($catalogIndex);
 
         if ($configuration->format === 'json' && !$configuration->quieter) {
-            $this->output($this->renderUnusedJson($unusedEntries, $referenceIndex, $catalogIndex));
+            $this->output($this->unusedReportRenderer->renderJson($unusedEntries, $referenceIndex, $catalogIndex));
             $this->outputLine();
         } elseif (!$configuration->quiet && !$configuration->quieter) {
-            $this->output($this->renderUnusedTable($unusedEntries));
+            $this->output($this->unusedReportRenderer->renderTable($unusedEntries));
             $this->outputLine();
         }
 
@@ -487,13 +504,13 @@ class L10nCommandController extends CommandController
                     $this->outputLine('No catalog entries were deleted.');
                 } else {
                     foreach ($touched as $file) {
-                        $this->outputLine('Touched catalog: %s', [$this->relativePath($file)]);
+                        $this->outputLine('Touched catalog: %s', [PathResolver::relativePath($file)]);
                     }
                 }
             }
         }
 
-        $exitCode = $this->resolveUnusedExitCode($catalogIndex, $unusedEntries, $configuration);
+        $exitCode = $this->unusedReportRenderer->resolveExitCode($catalogIndex, $unusedEntries, $configuration, $this->exitCodes);
         if ($exitCode !== $this->exitCode(self::EXIT_KEY_SUCCESS, 0)) {
             $this->quit($exitCode);
         }
@@ -571,7 +588,7 @@ class L10nCommandController extends CommandController
 
             if (!$isClean) {
                 $formatted[] = $filePath;
-                $this->outputLine('Formatted catalog: %s', [$this->relativePath($filePath)]);
+                $this->outputLine('Formatted catalog: %s', [PathResolver::relativePath($filePath)]);
             }
         }
 
@@ -582,7 +599,7 @@ class L10nCommandController extends CommandController
             }
 
             foreach ($dirty as $file) {
-                $this->outputLine('Catalog requires formatting: %s', [$this->relativePath($file)]);
+                $this->outputLine('Catalog requires formatting: %s', [PathResolver::relativePath($file)]);
             }
 
             $exitCode = $dirty !== []
@@ -713,14 +730,14 @@ class L10nCommandController extends CommandController
 
         if ($configuration->format === 'json') {
             if (!$configuration->quieter) {
-                $this->output($this->renderScanJson($scanResult, $configuration));
+                $this->output($this->scanReportRenderer->renderJson($scanResult, $configuration));
                 $this->outputLine();
             }
             return;
         }
 
         if (!$configuration->quiet && !$configuration->quieter) {
-            $this->output($this->renderScanTable($scanResult));
+            $this->output($this->scanReportRenderer->renderTable($scanResult));
             $this->outputLine();
         }
 
@@ -740,7 +757,7 @@ class L10nCommandController extends CommandController
                 $warning->key->sourceName,
                 $warning->key->identifier,
                 implode(', ', $warning->missingPlaceholders),
-                $this->relativePath($warning->reference->filePath) . ':' . $warning->reference->lineNumber
+                PathResolver::relativePath($warning->reference->filePath) . ':' . $warning->reference->lineNumber
             );
 
             if ($configuration->quieter) {
@@ -772,104 +789,6 @@ class L10nCommandController extends CommandController
 
     }
 
-    private function resolveScanExitCode(ScanResult $scanResult): int
-    {
-        if ($scanResult->catalogIndex->errors() !== []) {
-            return $this->exitCode(self::EXIT_KEY_FAILURE, 7);
-        }
-
-        if ($scanResult->missingTranslations !== []) {
-            return $this->exitCode(self::EXIT_KEY_MISSING, 5);
-        }
-
-        return $this->exitCode(self::EXIT_KEY_SUCCESS, 0);
-    }
-
-    private function renderScanTable(ScanResult $scanResult): string
-    {
-        if ($scanResult->missingTranslations === []) {
-            return 'No missing translations detected.';
-        }
-
-        $this->sortMissingTranslations($scanResult->missingTranslations);
-
-        $grouped = [];
-        foreach ($scanResult->missingTranslations as $missing) {
-            $grouped[$missing->locale][] = $missing;
-        }
-
-        $output = [];
-        ksort($grouped);
-
-        foreach ($grouped as $locale => $missingTranslations) {
-            $table = $this->createStyledTable();
-            $hidePackagePrefix = $this->isSinglePackage(
-                array_map(
-                    fn (MissingTranslation $missing) => $missing->key->packageKey,
-                    $missingTranslations
-                )
-            );
-
-            foreach ($missingTranslations as $missing) {
-                $reference = $missing->reference;
-                $table->row([
-                    'Source/ID' => $this->formatSourceCell(
-                        $missing->key->packageKey,
-                        $missing->key->sourceName,
-                        $missing->key->identifier,
-                        $hidePackagePrefix
-                    ),
-                    'File' => $this->formatFileColumn($table, $reference->filePath, $reference->lineNumber),
-                ]);
-            }
-
-            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
-        }
-
-        return PHP_EOL . implode(PHP_EOL, $output);
-    }
-
-    private function renderScanJson(ScanResult $scanResult, ScanConfiguration $configuration): string
-    {
-        $warnings = $scanResult->placeholderMismatches;
-        if ($configuration->ignorePlaceholderWarnings) {
-            $warnings = [];
-        }
-
-        $payload = [
-            'missing' => array_map(fn (MissingTranslation $missing) => [
-                'locale' => $missing->locale,
-                'package' => $missing->key->packageKey,
-                'source' => $missing->key->sourceName,
-                'id' => $missing->key->identifier,
-                'issue' => 'missing',
-                'fallback' => $missing->reference->fallback,
-                'placeholders' => array_keys($missing->reference->placeholders),
-                'file' => $this->relativePath($missing->reference->filePath),
-                'line' => $missing->reference->lineNumber,
-            ], $scanResult->missingTranslations),
-            'warnings' => array_map(fn (PlaceholderMismatch $warning) => [
-                'locale' => $warning->locale,
-                'package' => $warning->key->packageKey,
-                'source' => $warning->key->sourceName,
-                'id' => $warning->key->identifier,
-                'issue' => 'placeholder-mismatch',
-                'missingPlaceholders' => $warning->missingPlaceholders,
-                'referencePlaceholders' => $warning->referencePlaceholders,
-                'catalogPlaceholders' => $warning->catalogPlaceholders,
-                'file' => $this->relativePath($warning->reference->filePath),
-                'line' => $warning->reference->lineNumber,
-            ], $warnings),
-            'duplicates' => $this->summarizeReferenceDuplicates($scanResult->referenceIndex),
-            'diagnostics' => [
-                'errors' => $scanResult->catalogIndex->errors(),
-                'missingCatalogs' => $scanResult->catalogIndex->missingCatalogs(),
-            ],
-        ];
-
-        return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
-    }
-
     /**
      * @return list<CatalogEntry>
      */
@@ -887,137 +806,6 @@ class L10nCommandController extends CommandController
         }
 
         return $unused;
-    }
-
-    private function renderUnusedJson(
-        array $unusedEntries,
-        ReferenceIndex $referenceIndex,
-        CatalogIndex $catalogIndex
-    ): string {
-        $payload = [
-            'unused' => array_map(fn (CatalogEntry $entry) => [
-                'locale' => $entry->locale,
-                'package' => $entry->packageKey,
-                'source' => $entry->sourceName,
-                'id' => $entry->identifier,
-                'issue' => 'unused',
-                'state' => $entry->state,
-                'sourceText' => $entry->source,
-                'targetText' => $entry->target,
-                'file' => $this->relativePath($entry->filePath),
-            ], $unusedEntries),
-            'duplicates' => $this->summarizeReferenceDuplicates($referenceIndex),
-            'diagnostics' => [
-                'errors' => $catalogIndex->errors(),
-                'missingCatalogs' => $catalogIndex->missingCatalogs(),
-            ],
-        ];
-
-        return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}';
-    }
-
-    private function renderUnusedTable(array $unusedEntries): string
-    {
-        if ($unusedEntries === []) {
-            return 'No unused translations detected.';
-        }
-
-        $this->sortCatalogEntries($unusedEntries);
-
-        $grouped = [];
-        foreach ($unusedEntries as $entry) {
-            $grouped[$entry->locale][] = $entry;
-        }
-
-        $output = [];
-        ksort($grouped);
-
-        foreach ($grouped as $locale => $entries) {
-            $table = $this->createStyledTable();
-            $hidePackagePrefix = $this->isSinglePackage(
-                array_map(
-                    fn (CatalogEntry $entry) => $entry->packageKey,
-                    $entries
-                )
-            );
-
-            foreach ($entries as $entry) {
-                $table->row([
-                    'Source/ID' => $this->formatSourceCell(
-                        $entry->packageKey,
-                        $entry->sourceName,
-                        $entry->identifier,
-                        $hidePackagePrefix
-                    ),
-                    'File' => $this->formatFileColumn($table, $entry->filePath),
-                ]);
-            }
-
-            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
-        }
-
-        return PHP_EOL . implode(PHP_EOL, $output);
-    }
-
-    private function summarizeReferenceDuplicates(ReferenceIndex $referenceIndex): array
-    {
-        $duplicates = [];
-        foreach ($this->iterateDuplicateIdentifiers($referenceIndex) as [$packageKey, $sourceName, $identifier]) {
-            $allReferences = $referenceIndex->allFor($packageKey, $sourceName, $identifier);
-            $duplicates[] = [
-                'package' => $packageKey,
-                'source' => $sourceName,
-                'id' => $identifier,
-                'occurrences' => count($allReferences),
-                'files' => array_map(
-                    fn ($reference) => [
-                        'file' => $this->relativePath($reference->filePath),
-                        'line' => $reference->lineNumber,
-                    ],
-                    $allReferences
-                ),
-            ];
-        }
-
-        return $duplicates;
-    }
-
-    private function logCatalogDiagnostics(CatalogIndex $catalogIndex): void
-    {
-        foreach ($catalogIndex->errors() as $error) {
-            $this->logger->error(
-                $error['message'],
-                array_merge($error['context'], LogEnvironment::fromMethodName(__METHOD__))
-            );
-        }
-
-        foreach ($catalogIndex->missingCatalogs() as $missing) {
-            $this->logger->warning(
-                sprintf(
-                    'Missing catalog for locale %s (%s:%s)',
-                    $missing['locale'],
-                    $missing['packageKey'],
-                    $missing['sourceName']
-                ),
-                LogEnvironment::fromMethodName(__METHOD__)
-            );
-        }
-    }
-
-    private function resolveUnusedExitCode(
-        CatalogIndex $catalogIndex,
-        array $unusedEntries,
-        ScanConfiguration $configuration
-    ): int {
-        if ($catalogIndex->errors() !== []) {
-            return $this->exitCode(self::EXIT_KEY_FAILURE, 7);
-        }
-
-        if ($unusedEntries !== [] && !$configuration->update) {
-            return $this->exitCode(self::EXIT_KEY_UNUSED, 6);
-        }
-
-        return $this->exitCode(self::EXIT_KEY_SUCCESS, 0);
     }
 
     private function exitCode(string $key, int $fallback): int
@@ -1058,142 +846,6 @@ class L10nCommandController extends CommandController
         }
     }
 
-    /**
-     * @return iterable<array{0: string, 1: string, 2: string}>
-     */
-    private function iterateDuplicateIdentifiers(ReferenceIndex $referenceIndex): iterable
-    {
-        foreach ($referenceIndex->duplicates() as $packageKey => $sources) {
-            foreach ($sources as $sourceName => $identifiers) {
-                foreach (array_keys($identifiers) as $identifier) {
-                    yield [$packageKey, $sourceName, $identifier];
-                }
-            }
-        }
-    }
-
-    private function createStyledTable(): Table
-    {
-        $table = new Table();
-        $table->setBorderStyle(Table::COLOR_BLUE);
-        $table->setCellStyle(Table::COLOR_GREEN);
-        $table->setHeaderStyle(Table::COLOR_RED, Table::BOLD);
-
-        return $table;
-    }
-
-    private function renderLlmTranslationsTable(array $mutations, CatalogIndex $catalogIndex, string $sourceLocale): ?string
-    {
-        /** @var list<CatalogMutation> $generated */
-        $generated = array_values(array_filter(
-            $mutations,
-            static fn (CatalogMutation $mutation): bool => $mutation->target !== ''
-        ));
-        if ($generated === []) {
-            return null;
-        }
-
-        $rows = [];
-        $translatedLocales = [];
-        foreach ($generated as $mutation) {
-            $key = $this->translationIdFromParts($mutation->packageKey, $mutation->sourceName, $mutation->identifier);
-            $rows[$key] ??= [
-                'packageKey' => $mutation->packageKey,
-                'sourceName' => $mutation->sourceName,
-                'identifier' => $mutation->identifier,
-                'fallback' => $mutation->fallback,
-                'translations' => [],
-            ];
-            $rows[$key]['translations'][$mutation->locale] = [
-                'value' => $mutation->target,
-                'existing' => false,
-            ];
-            $translatedLocales[$mutation->locale] = true;
-        }
-
-        foreach ($rows as $rowKey => &$row) {
-            $key = new TranslationKey($row['packageKey'], $row['sourceName'], $row['identifier']);
-            foreach ($catalogIndex->locales() as $locale) {
-                if ($locale === $sourceLocale) {
-                    continue;
-                }
-                $entry = $catalogIndex->entriesFor($locale, $key)[$row['identifier']] ?? null;
-                if ($entry === null || $entry->target === '') {
-                    continue;
-                }
-                if (!isset($row['translations'][$locale]) || ($row['translations'][$locale]['value'] ?? '') === '') {
-                    $row['translations'][$locale] = [
-                        'value' => sprintf('(%s)', $entry->target),
-                        'existing' => true,
-                    ];
-                }
-                $translatedLocales[$locale] = true;
-            }
-        }
-        unset($row);
-
-        $translatedLocales = array_keys($translatedLocales);
-        $translatedLocales = array_values(array_filter(
-            $translatedLocales,
-            static fn (string $locale): bool => $locale !== $sourceLocale
-        ));
-        sort($translatedLocales, SORT_NATURAL | SORT_FLAG_CASE);
-
-        foreach ($rows as &$row) {
-            $sourceTranslation = $row['translations'][$sourceLocale]['value'] ?? null;
-            $row['source'] = $sourceTranslation
-                ?? $this->sourceTextForMutation(
-                    $row['packageKey'],
-                    $row['sourceName'],
-                    $row['identifier'],
-                    $row['fallback'],
-                    $catalogIndex,
-                    $sourceLocale
-                );
-        }
-        unset($row);
-
-        ksort($rows, SORT_NATURAL | SORT_FLAG_CASE);
-
-        $table = $this->createStyledTable();
-        $hidePackagePrefix = $this->isSinglePackage(array_column($rows, 'packageKey'));
-
-        foreach ($rows as $row) {
-            $tableRow = [
-                'Source/ID' => $this->formatSourceCell(
-                    $row['packageKey'],
-                    $row['sourceName'],
-                    $row['identifier'],
-                    $hidePackagePrefix
-                ),
-                $sourceLocale => $this->formatTranslationCell($row['source']),
-            ];
-
-            foreach ($translatedLocales as $locale) {
-                $tableRow[$locale] = $this->formatTranslationCell($row['translations'][$locale] ?? '');
-            }
-
-            $table->row($tableRow);
-        }
-
-        return 'LLM translations:' . PHP_EOL . (string)$table;
-    }
-
-    private function sourceTextForMutation(
-        string $packageKey,
-        string $sourceName,
-        string $identifier,
-        string $fallback,
-        CatalogIndex $catalogIndex,
-        string $sourceLocale
-    ): string {
-        $key = new TranslationKey($packageKey, $sourceName, $identifier);
-        $entries = $catalogIndex->entriesFor($sourceLocale, $key);
-        $entry = $entries[$identifier] ?? null;
-
-        return $entry?->target ?? $entry?->source ?? $fallback;
-    }
-
     private function outputLlmReport(
         array $mutations,
         CatalogIndex $catalogIndex,
@@ -1209,18 +861,11 @@ class L10nCommandController extends CommandController
 
         $table = null;
         if (!$quiet) {
-            $table = $this->renderLlmTranslationsTable($mutations, $catalogIndex, $sourceLocale);
+            $table = $this->llmReportRenderer->renderTranslationsTable($mutations, $catalogIndex, $sourceLocale);
         }
 
         if ($runStatistics !== null && !$isJson) {
-            $this->outputLine(
-                '%d LLM API calls, %s tokens in, %s tokens out',
-                [
-                    $runStatistics->apiCalls,
-                    number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
-                    number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
-                ]
-            );
+            $this->outputLine($this->llmReportRenderer->renderStatistics($runStatistics));
             if ($table !== null) {
                 $this->outputLine();
             }
@@ -1230,32 +875,6 @@ class L10nCommandController extends CommandController
             $this->output($table);
             $this->outputLine();
         }
-    }
-
-    private function formatTranslationCell(array|string $translation): string
-    {
-        $value = is_array($translation) ? (string)($translation['value'] ?? '') : (string)$translation;
-        $existing = is_array($translation) ? (bool)($translation['existing'] ?? false) : false;
-
-        if ($existing && $value !== '') {
-            $value = $this->colorize($value, Table::COLOR_DARK_GRAY);
-        }
-
-        return implode(PHP_EOL, ['', $value]);
-    }
-
-    private function formatSourceCell(
-        string $packageKey,
-        string $sourceName,
-        string $identifier,
-        bool $hidePackagePrefix
-    ): string {
-        $sourceLine = $hidePackagePrefix ? $sourceName : sprintf('%s:%s', $packageKey, $sourceName);
-
-        return implode(PHP_EOL, [
-            $this->colorize($sourceLine, Table::COLOR_DARK_GRAY),
-            $this->colorize($identifier, Table::ITALIC, Table::COLOR_LIGHT_YELLOW),
-        ]);
     }
 
     private function matchesPattern(string $value, string $pattern): bool
@@ -1268,56 +887,6 @@ class L10nCommandController extends CommandController
         $regex = '/^' . str_replace('\*', '.*', $escaped) . '$/i';
 
         return preg_match($regex, $value) === 1;
-    }
-
-    private function formatFileColumn(Table $table, string $filePath, ?int $lineNumber = null): string
-    {
-        $relative = $this->relativePath($filePath);
-        $prefix = 'DistributionPackages/Two13Tec.Senegal/';
-        if (str_starts_with($relative, $prefix)) {
-            $relative = substr($relative, strlen($prefix));
-        }
-
-        $location = $relative;
-        if ($lineNumber !== null) {
-            $dataStyles = $table->dataStylesForColumn('File');
-            $location .= Table::wrapWithStyles(':', [Table::COLOR_DARK_GRAY], $dataStyles);
-            $location .= Table::wrapWithStyles((string)$lineNumber, [Table::COLOR_LIGHT_GRAY], $dataStyles);
-        }
-
-        return implode(PHP_EOL, ['', $location]);
-    }
-
-    /**
-     * @param array<string> $packageKeys
-     */
-    private function isSinglePackage(array $packageKeys): bool
-    {
-        return count(array_unique($packageKeys)) === 1;
-    }
-
-    /**
-     * @param list<MissingTranslation> $missingTranslations
-     */
-    private function sortMissingTranslations(array &$missingTranslations): void
-    {
-        usort(
-            $missingTranslations,
-            fn (MissingTranslation $a, MissingTranslation $b) => [$a->locale, $a->key->packageKey, $a->key->sourceName, $a->key->identifier]
-                <=> [$b->locale, $b->key->packageKey, $b->key->sourceName, $b->key->identifier]
-        );
-    }
-
-    /**
-     * @param list<CatalogEntry> $entries
-     */
-    private function sortCatalogEntries(array &$entries): void
-    {
-        usort(
-            $entries,
-            fn (CatalogEntry $a, CatalogEntry $b) => [$a->locale, $a->packageKey, $a->sourceName, $a->identifier]
-                <=> [$b->locale, $b->packageKey, $b->sourceName, $b->identifier]
-        );
     }
 
     private function writeToErrorOutput(string $message): void
@@ -1346,24 +915,5 @@ class L10nCommandController extends CommandController
         }
 
         $this->outputLine($message);
-    }
-
-    private function colorize(string $value, int ...$styles): string
-    {
-        if ($styles === []) {
-            return $value;
-        }
-
-        return sprintf("\e[%sm%s\e[0m", implode(';', $styles), $value);
-    }
-
-    private function relativePath(string $path): string
-    {
-        return ltrim(str_replace(FLOW_PATH_ROOT, '', $path), '/');
-    }
-
-    private function translationIdFromParts(string $packageKey, string $sourceName, string $identifier): string
-    {
-        return sprintf('%s:%s:%s', $packageKey, $sourceName, $identifier);
     }
 }

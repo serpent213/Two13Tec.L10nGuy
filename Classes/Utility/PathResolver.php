@@ -49,4 +49,12 @@ final class PathResolver
             'paths' => [$defaultPath],
         ]];
     }
+
+    /**
+     * Convert absolute path to relative path by stripping FLOW_PATH_ROOT prefix
+     */
+    public static function relativePath(string $path): string
+    {
+        return ltrim(str_replace(FLOW_PATH_ROOT, '', $path), '/');
+    }
 }
