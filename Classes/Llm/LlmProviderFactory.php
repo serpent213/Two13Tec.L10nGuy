@@ -31,11 +31,8 @@ use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 #[Flow\Scope('singleton')]
 final class LlmProviderFactory
 {
-    public function __construct(
-        #[Flow\InjectConfiguration(path: 'llm', package: 'Two13Tec.L10nGuy')]
-        protected readonly array $config = [],
-    ) {
-    }
+    #[Flow\InjectConfiguration(path: 'llm', package: 'Two13Tec.L10nGuy')]
+    protected array $config = [];
 
     /**
      * @throws LlmUnavailableException
