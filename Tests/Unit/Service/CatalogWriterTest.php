@@ -206,6 +206,49 @@ final class CatalogWriterTest extends TestCase
     /**
      * @test
      */
+    public function appliesLlmTranslationToSourceLanguage(): void
+    {
+        $writer = new CatalogWriter();
+        $configuration = new ScanConfiguration(
+            locales: ['en'],
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            idPattern: null,
+            paths: [$this->sandboxPath],
+            format: 'table',
+            update: true,
+            llm: new LlmConfiguration(
+                enabled: true,
+                provider: 'anthropic',
+                model: 'claude-3-5-sonnet'
+            )
+        );
+
+        $catalogIndex = $this->createCatalogIndex();
+        $mutation = new CatalogMutation(
+            locale: 'en',
+            packageKey: 'Two13Tec.Senegal',
+            sourceName: 'Presentation.Cards',
+            identifier: 'cards.llmSource',
+            fallback: 'cards.llmSource'
+        );
+        $mutation->target = 'Group settings';
+        $mutation->isLlmGenerated = true;
+        $mutation->llmProvider = 'anthropic';
+        $mutation->llmModel = 'claude-3-5-sonnet';
+
+        $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
+
+        $englishCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+
+        self::assertStringContainsString('<source state="needs-review">Group settings</source>', $englishCatalog);
+        self::assertStringNotContainsString('<source state="needs-review">cards.llmSource</source>', $englishCatalog);
+        self::assertStringContainsString('<note from="l10nguy" priority="1">llm-generated</note>', $englishCatalog);
+    }
+
+    /**
+     * @test
+     */
     public function writesPluralMutationsIntoGroup(): void
     {
         $writer = new CatalogWriter();

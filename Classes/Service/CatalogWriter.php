@@ -334,6 +334,10 @@ final class CatalogWriter
     ): array {
         $target = $writeTarget ? $mutation->target : null;
         $hasTarget = $writeTarget && $mutation->target !== null && $mutation->target !== '';
+        $source = $mutation->source;
+        if (!$writeTarget && $mutation->target !== '' && $mutation->target !== $source) {
+            $source = $mutation->target;
+        }
         $sourceAttributes = [];
         $state = $this->resolveReviewState($mutation, $setNeedsReview, $llmConfiguration);
 
@@ -343,7 +347,7 @@ final class CatalogWriter
 
         return [
             'id' => $identifier,
-            'source' => $mutation->source,
+            'source' => $source,
             'target' => $target,
             'state' => $state !== null && $writeTarget ? $state : null,
             'attributes' => [],
