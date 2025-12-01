@@ -2,7 +2,7 @@
     "description": "Neos CMS l10n helper",
     "type": "neos-package",
     "name": "two13tec/l10nguy",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "require": {
         "php": "^8.4",
         "neos/flow": "*"
