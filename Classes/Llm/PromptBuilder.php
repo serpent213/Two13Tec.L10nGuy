@@ -98,6 +98,89 @@ PROMPT;
     }
 
     /**
+     * Build prompt for single-locale batch translation with cross-reference context.
+     *
+     * @param list<array{translationId: string, sourceText: string, crossReference: array<string, string>, sourceSnippet: ?string, nodeTypeContext: ?string}> $items
+     */
+    public function buildSingleLocalePrompt(array $items, string $targetLocale): string
+    {
+        $localeName = $this->localeDisplayName($targetLocale);
+        $parts = [];
+
+        $parts[] = sprintf('Translate these items to %s (%s).', $localeName, $targetLocale);
+        $parts[] = '';
+        $parts[] = 'For each item, existing translations in other languages are provided as context to help you maintain consistency.';
+        $parts[] = '';
+        $parts[] = 'Respond ONLY with valid JSON in this exact format:';
+        $parts[] = '```json';
+        $parts[] = '{';
+        $parts[] = '  "translations": [';
+        $parts[] = '    { "id": "package:source:identifier", "translation": "your translation here" }';
+        $parts[] = '  ]';
+        $parts[] = '}';
+        $parts[] = '```';
+
+        foreach ($items as $index => $item) {
+            $parts[] = '';
+            $parts[] = sprintf('### Item %d', $index + 1);
+            $parts[] = sprintf('ID: "%s"', $item['translationId']);
+            $parts[] = sprintf('Source text: "%s"', $item['sourceText']);
+
+            if ($item['crossReference'] !== []) {
+                $parts[] = 'Existing translations in other languages:';
+                foreach ($item['crossReference'] as $locale => $translation) {
+                    $parts[] = sprintf('  - %s: "%s"', $locale, $translation);
+                }
+            }
+
+            if ($item['sourceSnippet'] !== null && $item['sourceSnippet'] !== '') {
+                $parts[] = '';
+                $parts[] = 'Context (surrounding code):';
+                $parts[] = '```';
+                $parts[] = $item['sourceSnippet'];
+                $parts[] = '```';
+            }
+
+            if ($item['nodeTypeContext'] !== null && $item['nodeTypeContext'] !== '') {
+                $parts[] = '';
+                $parts[] = 'NodeType definition:';
+                $parts[] = '```yaml';
+                $parts[] = $item['nodeTypeContext'];
+                $parts[] = '```';
+            }
+        }
+
+        return implode("\n", $parts);
+    }
+
+    private function localeDisplayName(string $locale): string
+    {
+        $map = [
+            'de' => 'German',
+            'de_AT' => 'Austrian German',
+            'de_CH' => 'Swiss German',
+            'en' => 'English',
+            'en_GB' => 'British English',
+            'en_US' => 'American English',
+            'fr' => 'French',
+            'fr_CA' => 'Canadian French',
+            'fr_CH' => 'Swiss French',
+            'es' => 'Spanish',
+            'it' => 'Italian',
+            'nl' => 'Dutch',
+            'pt' => 'Portuguese',
+            'pt_BR' => 'Brazilian Portuguese',
+            'pl' => 'Polish',
+            'ru' => 'Russian',
+            'ja' => 'Japanese',
+            'zh' => 'Chinese',
+            'ko' => 'Korean',
+        ];
+
+        return $map[$locale] ?? $locale;
+    }
+
+    /**
      * @param list<string> $targetLanguages
      */
     private function renderSection(

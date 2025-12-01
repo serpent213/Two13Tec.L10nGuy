@@ -263,7 +263,7 @@ final class ScanConfigurationFactoryTest extends TestCase
         self::assertSame('openai', $configuration->llm->provider);
         self::assertSame('gpt-4o', $configuration->llm->model);
         self::assertSame(2, $configuration->llm->batchSize);
-        self::assertSame(10, $configuration->llm->maxBatchSize);
+        self::assertSame(6, $configuration->llm->maxCrossReferenceLocales);
         self::assertSame(7, $configuration->llm->contextWindowLines);
         self::assertFalse($configuration->llm->includeNodeTypeContext);
         self::assertFalse($configuration->llm->includeExistingTranslations);
@@ -272,5 +272,6 @@ final class ScanConfigurationFactoryTest extends TestCase
         self::assertSame(2048, $configuration->llm->maxTokensPerCall);
         self::assertSame(50, $configuration->llm->rateLimitDelay);
         self::assertSame('demo prompt', $configuration->llm->systemPrompt);
+        self::assertFalse($configuration->llm->debug);
     }
 }

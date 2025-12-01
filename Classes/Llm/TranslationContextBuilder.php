@@ -55,6 +55,46 @@ final class TranslationContextBuilder
         );
     }
 
+    /**
+     * Gather translations of a specific identifier in OTHER locales (for cross-reference).
+     *
+     * @return array<string, string> locale => translation
+     */
+    public function gatherCrossReferenceTranslations(
+        CatalogIndex $catalogIndex,
+        string $packageKey,
+        string $sourceName,
+        string $identifier,
+        string $targetLocale,
+        int $maxLocales
+    ): array {
+        $translations = [];
+
+        foreach ($catalogIndex->entries() as $locale => $packages) {
+            if ($locale === $targetLocale) {
+                continue;
+            }
+
+            $entry = $packages[$packageKey][$sourceName][$identifier] ?? null;
+            if ($entry === null) {
+                continue;
+            }
+
+            $target = $entry->target ?? $entry->source;
+            if ($target !== null && $target !== '') {
+                $translations[$locale] = $target;
+            }
+
+            if (count($translations) >= $maxLocales) {
+                break;
+            }
+        }
+
+        ksort($translations, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $translations;
+    }
+
     private function buildNodeTypeContext(TranslationReference $reference, LlmConfiguration $config): ?string
     {
         if (!$config->includeNodeTypeContext || $reference->context !== TranslationReference::CONTEXT_YAML) {

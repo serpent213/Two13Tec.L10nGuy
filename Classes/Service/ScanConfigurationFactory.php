@@ -17,6 +17,7 @@ namespace Two13Tec\L10nGuy\Service;
 use Neos\Flow\Annotations as Flow;
 use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
+use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 
 /**
  * Takes Flow settings and CLI values and produces a normalized scan configuration.
@@ -218,22 +219,40 @@ final class ScanConfigurationFactory
         }
 
         $settings = $this->llmSettings;
+        $batchSize = (int)($settings['batchSize'] ?? LlmConfiguration::DEFAULT_BATCH_SIZE);
+        $maxCrossReferenceLocales = (int)($settings['maxCrossReferenceLocales'] ?? LlmConfiguration::DEFAULT_MAX_CROSS_REFERENCE_LOCALES);
+        $contextWindowLines = (int)($settings['contextWindowLines'] ?? LlmConfiguration::DEFAULT_CONTEXT_WINDOW_LINES);
+        $rateLimitDelay = (int)($settings['rateLimitDelay'] ?? LlmConfiguration::DEFAULT_RATE_LIMIT_DELAY);
+
+        if ($batchSize < 1) {
+            throw new LlmConfigurationException(sprintf('batchSize must be >= 1, got %d.', $batchSize), 1733044800);
+        }
+        if ($maxCrossReferenceLocales < 0) {
+            throw new LlmConfigurationException(sprintf('maxCrossReferenceLocales must be >= 0, got %d.', $maxCrossReferenceLocales), 1733044801);
+        }
+        if ($contextWindowLines < 0) {
+            throw new LlmConfigurationException(sprintf('contextWindowLines must be >= 0, got %d.', $contextWindowLines), 1733044802);
+        }
+        if ($rateLimitDelay < 0) {
+            throw new LlmConfigurationException(sprintf('rateLimitDelay must be >= 0, got %d.', $rateLimitDelay), 1733044803);
+        }
 
         return new LlmConfiguration(
             enabled: true,
             provider: $cliOptions['llmProvider'] ?? $settings['provider'] ?? null,
             model: $cliOptions['llmModel'] ?? $settings['model'] ?? null,
             dryRun: (bool)($cliOptions['dryRun'] ?? false),
-            batchSize: (int)($cliOptions['batchSize'] ?? $settings['batchSize'] ?? 1),
-            maxBatchSize: (int)($settings['maxBatchSize'] ?? 10),
-            contextWindowLines: (int)($settings['contextWindowLines'] ?? 5),
+            batchSize: $batchSize,
+            maxCrossReferenceLocales: $maxCrossReferenceLocales,
+            contextWindowLines: $contextWindowLines,
             includeNodeTypeContext: (bool)($settings['includeNodeTypeContext'] ?? true),
             includeExistingTranslations: (bool)($settings['includeExistingTranslations'] ?? true),
             markAsGenerated: (bool)($settings['markAsGenerated'] ?? true),
             defaultState: (string)($settings['defaultState'] ?? 'needs-review'),
             maxTokensPerCall: (int)($settings['maxTokensPerCall'] ?? 4096),
-            rateLimitDelay: (int)($settings['rateLimitDelay'] ?? 100),
+            rateLimitDelay: $rateLimitDelay,
             systemPrompt: (string)($settings['systemPrompt'] ?? ''),
+            debug: (bool)($settings['debug'] ?? false),
         );
     }
 }

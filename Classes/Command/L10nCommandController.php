@@ -104,6 +104,7 @@ class L10nCommandController extends CommandController
      * @param bool|null $llm Enable LLM-based translation of missing entries
      * @param string|null $llmProvider Override the configured LLM provider
      * @param string|null $llmModel Override the configured LLM model
+     * @param bool|null $dryRun Estimate LLM tokens without making API calls
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
      * @param bool|null $quiet Suppress table output
@@ -120,6 +121,7 @@ class L10nCommandController extends CommandController
         ?bool $llm = null,
         ?string $llmProvider = null,
         ?string $llmModel = null,
+        ?bool $dryRun = null,
         ?bool $ignorePlaceholder = null,
         ?bool $setNeedsReview = null,
         ?bool $quiet = null,
@@ -136,6 +138,7 @@ class L10nCommandController extends CommandController
             'llm' => $llm,
             'llmProvider' => $llmProvider,
             'llmModel' => $llmModel,
+            'dryRun' => $dryRun,
             'ignorePlaceholder' => $ignorePlaceholder,
             'setNeedsReview' => $setNeedsReview,
             'quiet' => $quiet,
@@ -226,7 +229,6 @@ class L10nCommandController extends CommandController
      * @param string|null $llmProvider Override the configured LLM provider
      * @param string|null $llmModel Override the configured LLM model
      * @param bool|null $dryRun Estimate tokens without making API calls
-     * @param int|null $batchSize Translations per LLM call
      * @param bool|null $quiet Suppress table output
      * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
      */
@@ -240,7 +242,6 @@ class L10nCommandController extends CommandController
         ?string $llmProvider = null,
         ?string $llmModel = null,
         ?bool $dryRun = null,
-        ?int $batchSize = null,
         ?bool $quiet = null,
         ?bool $quieter = null
     ): void {
@@ -255,7 +256,6 @@ class L10nCommandController extends CommandController
             'llmProvider' => $llmProvider,
             'llmModel' => $llmModel,
             'dryRun' => $dryRun,
-            'batchSize' => $batchSize,
             'quiet' => $quiet,
             'quieter' => $quieter,
         ]);

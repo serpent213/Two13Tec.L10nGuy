@@ -15,6 +15,7 @@ namespace Two13Tec\L10nGuy\Llm;
  */
 
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Log\PsrLoggerFactoryInterface;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use PhpLlm\LlmChain\Platform\Message\Message;
 use PhpLlm\LlmChain\Platform\Message\MessageBag;
@@ -55,6 +56,11 @@ final class LlmTranslationService
     #[Flow\Inject]
     protected LoggerInterface $logger;
 
+    #[Flow\Inject]
+    protected PsrLoggerFactoryInterface $loggerFactory;
+
+    private ?LoggerInterface $llmLogger = null;
+
     /**
      * @param list<CatalogMutation> $mutations
      * @return list<CatalogMutation>
@@ -68,34 +74,190 @@ final class LlmTranslationService
             return $mutations;
         }
 
-        $grouped = $this->groupMutationsByIdentifier($mutations, $scanResult->missingTranslations);
-        if ($grouped === []) {
+        $groupedBySourceAndLocale = $this->groupBySourceAndLocale($mutations, $scanResult->missingTranslations);
+        if ($groupedBySourceAndLocale === []) {
             return $mutations;
         }
 
         $systemPrompt = $this->promptBuilder->buildSystemPrompt($config);
 
         if ($config->dryRun) {
-            $this->logDryRun($grouped, $scanResult, $config, $systemPrompt);
+            $this->logDryRunSingleLocale($groupedBySourceAndLocale, $scanResult, $config, $systemPrompt);
             return $mutations;
         }
 
         $chain = $this->providerFactory->create();
-        $batchSize = $this->normalizeBatchSize($config);
+        $batchSize = $config->batchSize;
 
-        foreach (array_chunk($grouped, $batchSize) as $batch) {
-            $contexts = $this->buildContexts($batch, $scanResult, $config);
-            $messages = $this->buildMessages($contexts, $systemPrompt);
+        foreach ($groupedBySourceAndLocale as $sourceKey => $localeGroups) {
+            foreach ($localeGroups as $targetLocale => $groups) {
+                foreach ($this->balancedChunk($groups, $batchSize) as $batch) {
+                    $promptItems = $this->buildSingleLocalePromptItems($batch, $targetLocale, $scanResult, $config);
+                    $userPrompt = $this->promptBuilder->buildSingleLocalePrompt($promptItems, $targetLocale);
 
-            try {
-                $response = $chain->call($messages['messages']);
-                $parsed = $this->responseParser->parse($response->getContent());
-            } catch (\Throwable $exception) {
+                    $messages = new MessageBag(
+                        Message::forSystem($systemPrompt),
+                        Message::ofUser($userPrompt)
+                    );
+
+                    $this->logDebugRequest($config, $sourceKey, $targetLocale, $systemPrompt, $userPrompt);
+
+                    try {
+                        $response = $chain->call($messages);
+                        $responseContent = $response->getContent();
+                        $parsed = $this->responseParser->parse($responseContent);
+
+                        $this->logDebugResponse($config, $sourceKey, $targetLocale, $responseContent, $parsed);
+                    } catch (\Throwable $exception) {
+                        $this->logLlmError($sourceKey, $targetLocale, $userPrompt, $exception, $config);
+                        continue;
+                    }
+
+                    $this->applySingleLocaleTranslations($batch, $parsed, $targetLocale, $config);
+
+                    if ($config->rateLimitDelay > 0) {
+                        usleep($config->rateLimitDelay * 1000);
+                    }
+                }
+            }
+        }
+
+        return $mutations;
+    }
+
+    /**
+     * Chunk items into balanced groups.
+     *
+     * Instead of 11+1, produces 6+6 for 12 items with max 11.
+     *
+     * @template T
+     * @param list<T> $items
+     * @return list<list<T>>
+     */
+    private function balancedChunk(array $items, int $maxPerChunk): array
+    {
+        $count = count($items);
+        if ($count === 0) {
+            return [];
+        }
+
+        if ($count <= $maxPerChunk) {
+            return [$items];
+        }
+
+        $numChunks = (int)ceil($count / $maxPerChunk);
+        $chunkSize = (int)ceil($count / $numChunks);
+
+        return array_chunk($items, $chunkSize);
+    }
+
+    /**
+     * Group mutations by (package:source) and then by locale.
+     *
+     * @param list<CatalogMutation> $mutations
+     * @param list<MissingTranslation> $missingTranslations
+     * @return array<string, array<string, list<array{mutation: CatalogMutation, missing: MissingTranslation}>>>
+     */
+    private function groupBySourceAndLocale(array $mutations, array $missingTranslations): array
+    {
+        $missingByKeyAndLocale = [];
+        foreach ($missingTranslations as $missing) {
+            $key = $this->translationId($missing);
+            $missingByKeyAndLocale[$key][$missing->locale] = $missing;
+        }
+
+        $grouped = [];
+        foreach ($mutations as $mutation) {
+            $translationKey = $this->translationIdFromParts($mutation->packageKey, $mutation->sourceName, $mutation->identifier);
+            $missing = $missingByKeyAndLocale[$translationKey][$mutation->locale] ?? null;
+            if ($missing === null) {
+                continue;
+            }
+
+            $sourceKey = sprintf('%s:%s', $mutation->packageKey, $mutation->sourceName);
+            $grouped[$sourceKey][$mutation->locale][] = [
+                'mutation' => $mutation,
+                'missing' => $missing,
+            ];
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Build prompt items for single-locale batch translation.
+     *
+     * @param list<array{mutation: CatalogMutation, missing: MissingTranslation}> $batch
+     * @return list<array{translationId: string, sourceText: string, crossReference: array<string, string>, sourceSnippet: ?string, nodeTypeContext: ?string}>
+     */
+    private function buildSingleLocalePromptItems(
+        array $batch,
+        string $targetLocale,
+        ScanResult $scanResult,
+        LlmConfiguration $config
+    ): array {
+        $items = [];
+        foreach ($batch as $entry) {
+            $missing = $entry['missing'];
+            $mutation = $entry['mutation'];
+
+            $sourceText = $mutation->fallback !== '' ? $mutation->fallback : $missing->key->identifier;
+
+            $crossReference = $this->contextBuilder->gatherCrossReferenceTranslations(
+                $scanResult->catalogIndex,
+                $missing->key->packageKey,
+                $missing->key->sourceName,
+                $missing->key->identifier,
+                $targetLocale,
+                $config->maxCrossReferenceLocales
+            );
+
+            $context = $this->contextBuilder->build($missing, $scanResult->catalogIndex, $config);
+
+            $items[] = [
+                'translationId' => $this->translationId($missing),
+                'sourceText' => $sourceText,
+                'crossReference' => $crossReference,
+                'sourceSnippet' => $context->sourceSnippet,
+                'nodeTypeContext' => $context->nodeTypeContext,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Apply translations from single-locale response.
+     *
+     * @param list<array{mutation: CatalogMutation, missing: MissingTranslation}> $batch
+     * @param array<string, array<string, string>> $parsed
+     */
+    private function applySingleLocaleTranslations(
+        array $batch,
+        array $parsed,
+        string $targetLocale,
+        LlmConfiguration $config
+    ): void {
+        $generatedAt = $config->markAsGenerated ? new \DateTimeImmutable() : null;
+
+        foreach ($batch as $entry) {
+            $mutation = $entry['mutation'];
+            $missing = $entry['missing'];
+            $translationId = $this->translationId($missing);
+
+            $localeTranslations = $parsed[$translationId]
+                ?? $parsed[$missing->key->identifier]
+                ?? $parsed[ResponseParser::SINGLE_ENTRY_KEY]
+                ?? null;
+
+            if ($localeTranslations === null) {
                 $this->logger->warning(
-                    'LLM translation failed',
+                    'LLM response missing translation entry',
                     array_merge(
                         [
-                            'error' => $exception->getMessage(),
+                            'translationId' => $translationId,
+                            'identifier' => $missing->key->identifier,
+                            'locale' => $targetLocale,
                         ],
                         LogEnvironment::fromMethodName(__METHOD__)
                     )
@@ -103,14 +265,92 @@ final class LlmTranslationService
                 continue;
             }
 
-            $this->applyTranslations($batch, $parsed, $config);
+            // Handle single-locale format (SINGLE_LOCALE_KEY) or multi-locale format
+            $translation = $localeTranslations[ResponseParser::SINGLE_LOCALE_KEY]
+                ?? $localeTranslations[$targetLocale]
+                ?? null;
 
-            if ($config->rateLimitDelay > 0) {
-                usleep($config->rateLimitDelay * 1000);
+            if ($translation === null) {
+                continue;
+            }
+
+            $expectedPlaceholders = $this->expectedPlaceholders($mutation);
+            if ($expectedPlaceholders !== [] && !$this->placeholderValidator->validate(
+                $mutation->identifier,
+                $mutation->locale,
+                $translation,
+                $expectedPlaceholders
+            )) {
+                continue;
+            }
+
+            $mutation->target = $translation;
+
+            if (!$config->markAsGenerated) {
+                continue;
+            }
+
+            $mutation->isLlmGenerated = true;
+            $mutation->llmProvider = $config->provider ?? null;
+            $mutation->llmModel = $config->model ?? null;
+            $mutation->llmGeneratedAt = $generatedAt;
+        }
+    }
+
+    /**
+     * Log dry-run estimation for single-locale batching.
+     *
+     * @param array<string, array<string, list<array{mutation: CatalogMutation, missing: MissingTranslation}>>> $groupedBySourceAndLocale
+     */
+    private function logDryRunSingleLocale(
+        array $groupedBySourceAndLocale,
+        ScanResult $scanResult,
+        LlmConfiguration $config,
+        string $systemPrompt
+    ): void {
+        $batchSize = $config->batchSize;
+        $calls = [];
+        $totalTranslations = 0;
+        $uniqueIds = [];
+
+        foreach ($groupedBySourceAndLocale as $sourceKey => $localeGroups) {
+            foreach ($localeGroups as $targetLocale => $groups) {
+                foreach ($this->balancedChunk($groups, $batchSize) as $batch) {
+                    $promptItems = $this->buildSingleLocalePromptItems($batch, $targetLocale, $scanResult, $config);
+                    $userPrompt = $this->promptBuilder->buildSingleLocalePrompt($promptItems, $targetLocale);
+
+                    $calls[] = [
+                        'userPrompt' => $userPrompt,
+                        'translations' => count($batch),
+                    ];
+
+                    $totalTranslations += count($batch);
+                    foreach ($batch as $entry) {
+                        $uniqueIds[$this->translationId($entry['missing'])] = true;
+                    }
+                }
             }
         }
 
-        return $mutations;
+        $estimation = $this->tokenEstimator->estimate($calls, count($uniqueIds), $systemPrompt);
+
+        $this->outputDryRunReport($estimation, $config, $batchSize);
+
+        $this->logger->info(
+            'LLM dry-run estimation completed.',
+            array_merge(
+                [
+                    'uniqueTranslationIds' => count($uniqueIds),
+                    'translations' => $totalTranslations,
+                    'inputTokens' => $estimation->estimatedInputTokens,
+                    'outputTokens' => $estimation->estimatedOutputTokens,
+                    'peakTokensPerCall' => $estimation->peakTokensPerCall,
+                    'batchSize' => $batchSize,
+                    'maxTokensPerCall' => $config->maxTokensPerCall,
+                ],
+                LogEnvironment::fromMethodName(__METHOD__)
+            )
+        );
     }
 
     /**
@@ -319,18 +559,13 @@ final class LlmTranslationService
         return sprintf('%s:%s:%s', $packageKey, $sourceName, $identifier);
     }
 
-    private function normalizeBatchSize(LlmConfiguration $config): int
-    {
-        $batchSize = max(1, $config->batchSize);
-        return min($batchSize, max(1, $config->maxBatchSize));
-    }
 
     /**
      * @param list<array{mutations: list<CatalogMutation>, missing: MissingTranslation}> $groups
      */
     private function logDryRun(array $groups, ScanResult $scanResult, LlmConfiguration $config, string $systemPrompt): void
     {
-        $batchSize = $this->normalizeBatchSize($config);
+        $batchSize = $config->batchSize;
         $calls = [];
 
         foreach (array_chunk($groups, $batchSize) as $batch) {
@@ -412,5 +647,97 @@ final class LlmTranslationService
         $lines[] = '';
 
         echo implode(PHP_EOL, $lines);
+    }
+
+    private function getLlmLogger(): LoggerInterface
+    {
+        if ($this->llmLogger === null) {
+            $this->llmLogger = $this->loggerFactory->get('l10nGuyLlmLogger');
+        }
+
+        return $this->llmLogger;
+    }
+
+    private function logDebugRequest(
+        LlmConfiguration $config,
+        string $sourceKey,
+        string $targetLocale,
+        string $systemPrompt,
+        string $userPrompt
+    ): void {
+        if (!$config->debug) {
+            return;
+        }
+
+        $this->getLlmLogger()->debug(
+            'LLM request',
+            [
+                'source' => $sourceKey,
+                'locale' => $targetLocale,
+                'provider' => $config->provider,
+                'model' => $config->model,
+                'systemPrompt' => $systemPrompt,
+                'userPrompt' => $userPrompt,
+            ]
+        );
+    }
+
+    /**
+     * @param array<string, array<string, string>> $parsed
+     */
+    private function logDebugResponse(
+        LlmConfiguration $config,
+        string $sourceKey,
+        string $targetLocale,
+        string $responseContent,
+        array $parsed
+    ): void {
+        if (!$config->debug) {
+            return;
+        }
+
+        $this->getLlmLogger()->debug(
+            'LLM response',
+            [
+                'source' => $sourceKey,
+                'locale' => $targetLocale,
+                'rawResponse' => $responseContent,
+                'parsedTranslations' => $parsed,
+            ]
+        );
+    }
+
+    private function logLlmError(
+        string $sourceKey,
+        string $targetLocale,
+        string $userPrompt,
+        \Throwable $exception,
+        LlmConfiguration $config
+    ): void {
+        $context = [
+            'error' => $exception->getMessage(),
+            'source' => $sourceKey,
+            'locale' => $targetLocale,
+            'exceptionClass' => get_class($exception),
+        ];
+
+        if ($config->debug) {
+            $context['userPrompt'] = $userPrompt;
+            $context['trace'] = $exception->getTraceAsString();
+        }
+
+        $this->getLlmLogger()->error('LLM translation failed', $context);
+
+        $this->logger->warning(
+            'LLM translation failed',
+            array_merge(
+                [
+                    'error' => $exception->getMessage(),
+                    'source' => $sourceKey,
+                    'locale' => $targetLocale,
+                ],
+                LogEnvironment::fromMethodName(__METHOD__)
+            )
+        );
     }
 }

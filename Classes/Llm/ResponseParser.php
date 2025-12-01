@@ -23,6 +23,7 @@ use Neos\Flow\Annotations as Flow;
 final class ResponseParser
 {
     public const SINGLE_ENTRY_KEY = '__single__';
+    public const SINGLE_LOCALE_KEY = '__locale__';
 
     /**
      * @return array<string, array<string, string>> keyed by translation id
@@ -66,6 +67,17 @@ final class ResponseParser
             }
 
             $id = is_string($key) ? $key : (is_string($payload['id'] ?? null) ? $payload['id'] : null);
+
+            // Handle single-locale format: { "id": "...", "translation": "..." }
+            if (isset($payload['translation']) && is_string($payload['translation'])) {
+                $translation = trim($payload['translation']);
+                if ($translation !== '' && $id !== null && $id !== '') {
+                    $result[$id] = [self::SINGLE_LOCALE_KEY => $translation];
+                }
+                continue;
+            }
+
+            // Handle multi-locale format: { "id": "...", "translations": { "de": "...", "fr": "..." } }
             $localeMap = $payload['translations'] ?? $payload;
             if (!$this->isLocaleMap($localeMap)) {
                 continue;

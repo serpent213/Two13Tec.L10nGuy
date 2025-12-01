@@ -68,14 +68,16 @@ Two13Tec:
       includeNodeTypeContext: true
       includeExistingTranslations: true
 
-      batchSize: 1
-      maxBatchSize: 10
+      batchSize: 11
+      maxCrossReferenceLocales: 6
 
       markAsGenerated: true
       defaultState: 'needs-review'
 
       maxTokensPerCall: 4096
       rateLimitDelay: 100
+
+      debug: false
 
     exitCodes:
       success: 0
