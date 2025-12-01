@@ -10,7 +10,7 @@ Core PHP services, CLI commands, and DTOs live under `Classes/` using PSR-4 (`Tw
 - `XDG_CACHE_HOME=$PWD/.cache just test` spawns Flow’s phpunit suites (`FLOW_CONTEXT=Testing`) for Unit and Functional directories.
 - `./flow l10n:scan` / `./flow l10n:unused` (from repo root) exercise the commands against the Senegal fixtures; writes only occur when `--update` or `--delete` is passed.
 
-ALWAYS run `just format`, `just lint` and `just test` in this project root folder after making chnges (and it between as required).
+ALWAYS run `just format`, `just lint` and `just test` in this project root folder after making chnges (and it between as required), except for documentation updates.
 
 ## Coding Style & Naming Conventions
 Stick to modern PHP 8.4 with `declare(strict_types=1);`, four-space indentation, and promoted constructor properties for value objects. Prefer descriptive DTO names (`TranslationReference`, `CatalogEntry`) and suffix collectors or services by responsibility (`PhpReferenceCollector`). Translation IDs use `package:source:id` or `source.identifier` per Flow conventions. Formatting is automated by treefmt running php-cs-fixer (config in `../../.php-cs-fixer.php`) and prettier for YAML/composer files; never bypass it before opening a PR.

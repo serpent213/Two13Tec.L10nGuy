@@ -4,9 +4,10 @@ Flow CLI localisation companion that keeps Neos translation catalogs in sync wit
 
 ## Features
 
-- `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source.
+- `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source. Optionally uses an LLM for heuristic translation.
 - `./flow l10n:unused` – lists catalog entries that no longer have a matching reference; can delete unused nodes in place to keep XLFs tidy.
 - `./flow l10n:format` – re-renders existing catalogs using the helper’s writer so indentation, attribute ordering, and trailing newlines stay consistent (supports `--check` for CI).
+- `./flow l10n:translate` – bulk-translates missing entries to a target locale via LLM with dry-run estimation.
 - Shared diagnostics: table or JSON output, deterministic exit codes for CI pipelines, detailed logging of XML parse errors, duplicates, and missing catalogs.
 - Comprehensive fixtures + functional tests mirror real-life components
 
@@ -16,19 +17,19 @@ Run the commands from the project root (defaults to `Development` context). Comm
 
 ```bash
 ./flow l10n:scan \
-  --package Two13Tec.Senegal \
+  --package Acme.Senegal \
   --locales de,en
 ```
 
 ```bash
 ./flow l10n:unused \
-  --package Two13Tec.Senegal
+  --package Acme.Senegal
 ```
 
 (Locales will be auto-detected by default, see [Configuration](#configuration) for details.)
 
 - `./flow l10n:format --check` shares the same filters (`--package`, `--source`, `--path`, `--locales`) and exits non-zero when a catalog would be rewritten (without touching the files). Drop `--check` to re-render the catalogs in place.
-- `--update` for `l10n:scan` creates missing entries via the catalog writer. Without `--update` the command is read-only.
+- `--update` for `l10n:scan` creates missing entries via the catalog writer. Without `--update` the command is read-only. `--llm` translates missing entries as they are written; add `--dry-run` to estimate token usage and suppress catalog writes even when `--update` is set.
 - `--delete` for `l10n:unused` removes unused `<trans-unit>` nodes. Without `--delete` the command only reports unused entries.
 - `--quiet` suppresses the table output for `l10n:scan` / `l10n:unused`; `--quieter` hides all stdout output while still emitting warnings/errors on stderr.
 - Exit codes: `0` clean, `5` missing translations, `6` unused translations (unless deleted), `8` catalogs need formatting (from `--check`), `7` fatal failure.
@@ -36,6 +37,19 @@ Run the commands from the project root (defaults to `Development` context). Comm
 See `Documentation/Architecture.rst` for the full architecture guide, data model notes, and extension points.
 
 Run `just docs` to generate an HTML version in `Documentation/_build/html`.
+
+### LLM usage
+
+```bash
+# Scan, create missing entries, and translate them via the configured LLM
+./flow l10n:scan --update --llm
+
+# Preview the same run without touching catalogs; reports token estimates
+./flow l10n:scan --update --llm --dry-run --package Acme.Senegal --locales fr
+
+# Bulk-translate existing catalogs into a new locale
+./flow l10n:translate fr --package Acme.Senegal --source Presentation.Cards
+```
 
 ## Supported reference patterns
 
@@ -49,27 +63,27 @@ $this->translator->translateById(
     null,
     null,
     'Forms',
-    'Two13Tec.Senegal'
+    'Acme.Senegal'
 );
 
 // Static shorthand
-I18n::translate('Two13Tec.Senegal:Forms:button.submit');
+I18n::translate('Acme.Senegal:Forms:button.submit');
 ```
 
 ### Fusion / AFX
 
 ```fusion
 // Classic syntax
-label = ${I18n.translate('button.submit', 'Submit', {}, 'Forms', 'Two13Tec.Senegal')}
+label = ${I18n.translate('button.submit', 'Submit', {}, 'Forms', 'Acme.Senegal')}
 
 // Fluent syntax
-label = ${Translation.id('button.submit').package('Two13Tec.Senegal').source('Forms').value('Submit')}
+label = ${Translation.id('button.submit').package('Acme.Senegal').source('Forms').value('Submit')}
 ```
 
 ### YAML (NodeTypes)
 
 ```yaml
-'Two13Tec.Senegal:Content.Card':
+'Acme.Senegal:Content.Card':
   ui:
     label: 'i18n'                # Detected as package:NodeTypes.Content.Card:label
     inspector:
@@ -103,6 +117,55 @@ The helper ships sane defaults in [`Configuration/Settings.L10nGuy.yaml`](Config
 
 Neos/Flow configuration conventions apply, so you can override these keys per context (`Settings.Development.yaml`, etc.) without touching the distributed defaults.
 
+### LLM configuration
+
+```yaml
+Two13Tec:
+  L10nGuy:
+    llm:
+      provider: openai
+      model: gpt-4.1-mini
+      api_key: '%env(OPENAI_API_KEY)%'
+
+      systemPrompt: |
+        You are translating a Neos CMS website for a commercial mushroom
+        cultivation supplies company.
+
+        ## Domain Glossary
+        These terms have specialist meanings—translate consistently and never
+        confuse them with their everyday or computing homonyms:
+        - "substrate" – the nutrient-rich growing medium (NOT a computing term)
+        - "spawn" – mycelium starter material (NOT game/computing spawn)
+        - "flush" – a single harvest cycle (NOT cleaning or cache flush)
+        - "pins" – tiny mushroom primordia (NOT metal pins or map markers)
+        - "fruiting" – the phase when mushrooms emerge
+        - "casing" – a moisture-retaining top layer (NOT a phone case)
+        - "FAE" – Fresh Air Exchange; keep the acronym, explain on first use
+        - "canopy" – the dense top surface of mature mushrooms in a flush
+        - "colonisation" – mycelium spreading through substrate
+
+        ## Brand Names (never translate)
+        - "MycoMax Pro" (substrate product line)
+        - "SpawnMaster 3000" (inoculation equipment)
+        - "GrowTek" (the company name)
+
+        ## Tone Guidelines
+        - Product descriptions: professional, informative, subtly enthusiastic
+        - Growing guides: clear, step-by-step, encouraging for beginners
+        - Error messages: helpful and specific; avoid jargon
+        - Customer support copy: warm, patient, solution-focused
+
+        ## Audience
+        A mix of hobby growers and commercial cultivators. Default to
+        accessible language; use technical terms only where context demands.
+
+        ## Formality
+        Use formal address in languages that distinguish it (e.g. "Sie" in
+        German, "vous" in French, "usted" in Spanish).
+```
+
+`--llm-provider` / `--llm-model` override the configured defaults per run. `--systemPrompt` is not a CLI flag—set it in configuration when you need to steer tone or add policy notes. Combine `--llm` with `--dry-run` to skip API calls and avoid writes even if `--update` is supplied.
+
 ## Development workflow
 
 Inside `DistributionPackages/Two13Tec.L10nGuy` you can use the bundled `just` targets (ensure the project dev shell is active first):
@@ -122,8 +185,9 @@ Unit test fixtures live under `Tests/Fixtures/SenegalBaseline`; they are mirrore
 
 ## Requirements
 
-- PHP 8.4+ (provided via the repo’s Nix/devshell setup).
+- PHP 8.4+
 - Flow/Neos distribution bootstrapped via `composer install`; we only use Flow’s CLI, DI attributes, and XLIFF provider APIs available since Flow 8, so any Flow/Neos version that supports PHP 8.4 should work (no Flow 9–only features).
 
   See [GitHub Actions](https://github.com/serpent213/Two13Tec.L10nGuy/actions) for tested versions in CI.
 - Translations stored in standard Flow/Neos `Resources/Private/Translations/<locale>/…` paths so the catalog writer can resolve files.
+- LLM functionality is optional. `composer require --dev --update-with-all-dependencies php-llm/llm-chain` to install the required dependencies.

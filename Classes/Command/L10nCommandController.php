@@ -104,7 +104,7 @@ class L10nCommandController extends CommandController
      * @param bool|null $llm Enable LLM-based translation of missing entries
      * @param string|null $llmProvider Override the configured LLM provider
      * @param string|null $llmModel Override the configured LLM model
-     * @param bool|null $dryRun Estimate LLM tokens without making API calls
+     * @param bool|null $dryRun Estimate LLM tokens without making API calls; inhibits catalog writes even when --update is set
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
      * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
      * @param bool|null $quiet Suppress table output
@@ -228,7 +228,7 @@ class L10nCommandController extends CommandController
      * @param string|null $path Optional search root for references and catalogs
      * @param string|null $llmProvider Override the configured LLM provider
      * @param string|null $llmModel Override the configured LLM model
-     * @param bool|null $dryRun Estimate tokens without making API calls
+     * @param bool|null $dryRun Estimate tokens without making API calls; inhibits catalog writes
      * @param bool|null $quiet Suppress table output
      * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
      */
