@@ -63,4 +63,9 @@ final class TokenEstimator
 
         return max(1, (int)ceil($length / 4));
     }
+
+    public function estimateOutputTokens(int $translations): int
+    {
+        return $translations * self::TOKENS_PER_TRANSLATION;
+    }
 }

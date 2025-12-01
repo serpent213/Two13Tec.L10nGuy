@@ -22,6 +22,7 @@ use PhpLlm\LlmChain\Platform\Message\MessageBag;
 use Psr\Log\LoggerInterface;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\LlmConfiguration;
+use Two13Tec\L10nGuy\Domain\Dto\LlmRunStatistics;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
 use Two13Tec\L10nGuy\Domain\Dto\TokenEstimation;
@@ -73,7 +74,8 @@ final class LlmTranslationService
         array $mutations,
         ScanResult $scanResult,
         LlmConfiguration $config,
-        ?ProgressIndicator $progressIndicator = null
+        ?ProgressIndicator $progressIndicator = null,
+        ?LlmRunStatistics $runStatistics = null
     ): array {
         if ($mutations === [] || !$config->enabled) {
             return $mutations;
@@ -95,12 +97,15 @@ final class LlmTranslationService
         $batchSize = $config->batchSize;
         $plannedApiCalls = $this->countPlannedApiCalls($groupedBySourceAndLocale, $batchSize);
         $completedApiCalls = 0;
+        $systemTokens = $this->tokenEstimator->estimateTokens($systemPrompt);
 
         foreach ($groupedBySourceAndLocale as $sourceKey => $localeGroups) {
             foreach ($localeGroups as $targetLocale => $groups) {
                 foreach ($this->balancedChunk($groups, $batchSize) as $batch) {
                     $promptItems = $this->buildSingleLocalePromptItems($batch, $targetLocale, $scanResult, $config);
                     $userPrompt = $this->promptBuilder->buildSingleLocalePrompt($promptItems, $targetLocale);
+                    $inputTokens = $systemTokens + $this->tokenEstimator->estimateTokens($userPrompt);
+                    $outputTokens = $this->tokenEstimator->estimateOutputTokens(count($batch));
 
                     $messages = new MessageBag(
                         Message::forSystem($systemPrompt),
@@ -121,6 +126,10 @@ final class LlmTranslationService
                     }
 
                     $this->applySingleLocaleTranslations($batch, $parsed, $targetLocale, $config);
+
+                    if ($runStatistics !== null) {
+                        $runStatistics->registerCall($inputTokens, $outputTokens);
+                    }
 
                     if ($config->rateLimitDelay > 0) {
                         usleep($config->rateLimitDelay * 1000);

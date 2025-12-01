@@ -38,6 +38,7 @@ use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 use Two13Tec\L10nGuy\Llm\LlmTranslationService;
+use Two13Tec\L10nGuy\Domain\Dto\LlmRunStatistics;
 use Two13Tec\L10nGuy\Utility\ProgressIndicator;
 
 /**
@@ -185,8 +186,10 @@ class L10nCommandController extends CommandController
             } elseif ($mutations !== []) {
                 if ($configuration->llm !== null && $configuration->llm->enabled) {
                     $progressIndicator = null;
+                    $runStatistics = null;
                     if (!$isJson && !$configuration->quieter && !$configuration->llm->dryRun) {
                         $progressIndicator = new ProgressIndicator('%d/%d API calls');
+                        $runStatistics = new LlmRunStatistics();
                     }
 
                     try {
@@ -194,7 +197,8 @@ class L10nCommandController extends CommandController
                             $mutations,
                             $scanResult,
                             $configuration->llm,
-                            $progressIndicator
+                            $progressIndicator,
+                            $runStatistics
                         );
                     } catch (LlmUnavailableException|LlmConfigurationException $exception) {
                         $this->outputLine('! %s', [$exception->getMessage()]);
@@ -206,6 +210,17 @@ class L10nCommandController extends CommandController
                             $this->outputLine('LLM dry-run completed; catalogs were not modified.');
                         }
                         return;
+                    }
+
+                    if ($runStatistics !== null && !$configuration->quieter) {
+                        $this->outputLine(
+                            '%d API calls, %s tokens in, %s tokens out',
+                            [
+                                $runStatistics->apiCalls,
+                                number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
+                                number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
+                            ]
+                        );
                     }
                 }
 
@@ -333,15 +348,18 @@ class L10nCommandController extends CommandController
 
         try {
             $progressIndicator = null;
+            $runStatistics = null;
             if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
                 $progressIndicator = new ProgressIndicator('%d/%d API calls');
+                $runStatistics = new LlmRunStatistics();
             }
 
             $mutations = $this->llmTranslationService->translate(
                 $mutations,
                 $adjustedScanResult,
                 $runConfiguration->llm,
-                $progressIndicator
+                $progressIndicator,
+                $runStatistics
             );
         } catch (LlmUnavailableException|LlmConfigurationException $exception) {
             $this->outputLine('! %s', [$exception->getMessage()]);
@@ -353,6 +371,17 @@ class L10nCommandController extends CommandController
                 $this->outputLine('LLM dry-run completed; catalogs were not modified.');
             }
             return;
+        }
+
+        if ($runStatistics !== null && !$runConfiguration->quieter) {
+            $this->outputLine(
+                '%d API calls, %s tokens in, %s tokens out',
+                [
+                    $runStatistics->apiCalls,
+                    number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
+                    number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
+                ]
+            );
         }
 
         $touched = $this->catalogWriter->write($mutations, $catalogIndex, $runConfiguration);
