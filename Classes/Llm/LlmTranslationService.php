@@ -99,6 +99,10 @@ final class LlmTranslationService
         $completedApiCalls = 0;
         $systemTokens = $this->tokenEstimator->estimateTokens($systemPrompt);
 
+        if ($progressIndicator !== null && $plannedApiCalls > 0) {
+            $progressIndicator->start($plannedApiCalls);
+        }
+
         foreach ($groupedBySourceAndLocale as $sourceKey => $localeGroups) {
             foreach ($localeGroups as $targetLocale => $groups) {
                 foreach ($this->balancedChunk($groups, $batchSize) as $batch) {

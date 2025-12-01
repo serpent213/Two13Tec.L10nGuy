@@ -188,7 +188,8 @@ class L10nCommandController extends CommandController
                     $progressIndicator = null;
                     $runStatistics = null;
                     if (!$isJson && !$configuration->quieter && !$configuration->llm->dryRun) {
-                        $progressIndicator = new ProgressIndicator('%d/%d API calls');
+                        $modelLabel = $configuration->llm->model ?? 'model?';
+                        $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d API calls (%s)', $modelLabel));
                         $runStatistics = new LlmRunStatistics();
                     }
 
@@ -350,7 +351,8 @@ class L10nCommandController extends CommandController
             $progressIndicator = null;
             $runStatistics = null;
             if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
-                $progressIndicator = new ProgressIndicator('%d/%d API calls');
+                $modelLabel = $runConfiguration->llm->model ?? 'model?';
+                $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d API calls (%s)', $modelLabel));
                 $runStatistics = new LlmRunStatistics();
             }
 
@@ -375,7 +377,7 @@ class L10nCommandController extends CommandController
 
         if ($runStatistics !== null && !$runConfiguration->quieter) {
             $this->outputLine(
-                '%d API calls, %s tokens in, %s tokens out',
+                '%d LLM API calls, %s tokens in, %s tokens out',
                 [
                     $runStatistics->apiCalls,
                     number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),

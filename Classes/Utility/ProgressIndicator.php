@@ -13,12 +13,13 @@ final class ProgressIndicator
     private const COLOR_RED = "\033[31m";
     private const COLOR_BG_DARK = "\033[100m";
     private const COLOR_RESET = "\033[0m";
+    private const CURSOR_LINE_END = "\033[999G";
+    private const CLEAR_LINE = "\033[2K";
     private const HALF_LEFT = '▌';
     private const HALF_RIGHT = '▐';
 
-    private int $position = 0;
+    private int $position = 0;  // Half-cell index: 0..(SPINNER_WIDTH*2 - 1)
     private int $direction = 1; // 1 = right, -1 = left
-    private int $phase = 0; // 0 = left block, 1 = right block
     private string $progressFormat;
 
     public function __construct(string $progressFormat)
@@ -31,15 +32,29 @@ final class ProgressIndicator
      */
     public function tick(int $completedCalls, int $totalCalls): void
     {
-        // When moving right: phase 0 = ▌ (entering left), phase 1 = ▐ (exiting right)
-        // When moving left:  phase 0 = ▐ (entering right), phase 1 = ▌ (exiting left)
-        $halfDir = $this->phase === 0 ? -$this->direction : $this->direction;
-        $spinner = $this->renderSpinner($this->position, $halfDir);
+        $this->render($completedCalls, $totalCalls, true);
+    }
+
+    /**
+     * Render the initial spinner state before work begins.
+     */
+    public function start(int $totalCalls): void
+    {
+        $this->render(0, $totalCalls, false);
+    }
+
+    private function render(int $completedCalls, int $totalCalls, bool $advance): void
+    {
+        if ($advance) {
+            $this->advance();
+        }
+
+        $cellIndex = intdiv($this->position, 2);
+        $isRightHalf = ($this->position % 2) === 1;
+        $spinner = $this->renderSpinner($cellIndex, $isRightHalf);
         $progress = sprintf($this->progressFormat, $completedCalls, $totalCalls);
 
-        echo "\r{$spinner} {$progress}";
-
-        $this->advance();
+        echo "\r{$spinner} {$progress}" . self::CURSOR_LINE_END;
     }
 
     /**
@@ -47,21 +62,18 @@ final class ProgressIndicator
      */
     public function finish(?string $message = null): void
     {
-        $wipe = str_repeat(' ', self::SPINNER_WIDTH + 1 + 32);
-        echo "\r{$wipe}\r";
+        echo "\r" . self::CLEAR_LINE;
 
         if ($message !== null) {
             echo $message;
         }
-
-        echo PHP_EOL;
     }
 
-    private function renderSpinner(int $position, int $direction): string
+    private function renderSpinner(int $cellIndex, bool $isRightHalf): string
     {
         $slots = array_fill(0, self::SPINNER_WIDTH, self::COLOR_BG_DARK . ' ' . self::COLOR_RESET);
-        $slots[$position] = self::COLOR_BG_DARK . self::COLOR_RED
-            . ($direction < 0 ? self::HALF_LEFT : self::HALF_RIGHT)
+        $slots[$cellIndex] = self::COLOR_BG_DARK . self::COLOR_RED
+            . ($isRightHalf ? self::HALF_RIGHT : self::HALF_LEFT)
             . self::COLOR_RESET;
 
         return implode('', $slots);
@@ -69,22 +81,15 @@ final class ProgressIndicator
 
     private function advance(): void
     {
-        if ($this->phase === 0) {
-            $this->phase = 1;
-            return;
-        }
-
-        $this->phase = 0;
+        $maxPosition = self::SPINNER_WIDTH * 2 - 1;
         $this->position += $this->direction;
 
-        if ($this->position >= self::SPINNER_WIDTH) {
-            $this->position = self::SPINNER_WIDTH - 1;
+        if ($this->position > $maxPosition) {
+            $this->position = $maxPosition - 1;
             $this->direction = -1;
-            $this->phase = 1; // right block first when moving back
         } elseif ($this->position < 0) {
-            $this->position = 0;
+            $this->position = 1;
             $this->direction = 1;
-            $this->phase = 1; // right block first when moving back
         }
     }
 }
