@@ -21,6 +21,7 @@ use Psr\Log\LoggerInterface;
 use Two13Tec\L10nGuy\Cli\Table\Table;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
+use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
 use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
 use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
@@ -35,6 +36,7 @@ use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
 use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
 use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
 use Two13Tec\L10nGuy\Service\ScanResultBuilder;
+use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 use Two13Tec\L10nGuy\Llm\LlmTranslationService;
@@ -53,6 +55,7 @@ class L10nCommandController extends CommandController
     private const EXIT_KEY_FAILURE = 'failure';
     private const EXIT_KEY_DIRTY = 'dirty';
     private const EXIT_KEY_UNUSED = 'unused';
+    private const SOURCE_LOCALE = 'en';
 
     #[Flow\Inject]
     protected ScanConfigurationFactory $scanConfigurationFactory;
@@ -207,19 +210,27 @@ class L10nCommandController extends CommandController
                         if (!$isJson && !$configuration->quieter) {
                             $this->outputLine('LLM dry-run completed; catalogs were not modified.');
                         }
+                        $this->outputLlmReport(
+                            $mutations,
+                            $scanResult->catalogIndex,
+                            self::SOURCE_LOCALE,
+                            null,
+                            $isJson,
+                            $configuration->quiet,
+                            $configuration->quieter
+                        );
                         return;
                     }
 
-                    if ($runStatistics !== null && !$configuration->quieter) {
-                        $this->outputLine(
-                            '%d LLM API calls, %s tokens in, %s tokens out',
-                            [
-                                $runStatistics->apiCalls,
-                                number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
-                                number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
-                            ]
-                        );
-                    }
+                    $this->outputLlmReport(
+                        $mutations,
+                        $scanResult->catalogIndex,
+                        self::SOURCE_LOCALE,
+                        $runStatistics,
+                        $isJson,
+                        $configuration->quiet,
+                        $configuration->quieter
+                    );
                 }
 
                 $touched = $this->catalogWriter->write($mutations, $catalogIndex, $configuration);
@@ -344,9 +355,9 @@ class L10nCommandController extends CommandController
             $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
         }
 
+        $runStatistics = null;
         try {
             $progressIndicator = null;
-            $runStatistics = null;
             if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
                 $modelLabel = $runConfiguration->llm->model ?? 'model?';
                 $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d LLM API calls (%s)', $modelLabel));
@@ -369,19 +380,27 @@ class L10nCommandController extends CommandController
             if (!$runConfiguration->quieter) {
                 $this->outputLine('LLM dry-run completed; catalogs were not modified.');
             }
+            $this->outputLlmReport(
+                $mutations,
+                $catalogIndex,
+                $sourceLocale,
+                null,
+                false,
+                $runConfiguration->quiet,
+                $runConfiguration->quieter
+            );
             return;
         }
 
-        if ($runStatistics !== null && !$runConfiguration->quieter) {
-            $this->outputLine(
-                '%d LLM API calls, %s tokens in, %s tokens out',
-                [
-                    $runStatistics->apiCalls,
-                    number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
-                    number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
-                ]
-            );
-        }
+        $this->outputLlmReport(
+            $mutations,
+            $catalogIndex,
+            $sourceLocale,
+            $runStatistics,
+            false,
+            $runConfiguration->quiet,
+            $runConfiguration->quieter
+        );
 
         $touched = $this->catalogWriter->write($mutations, $catalogIndex, $runConfiguration);
         if (!$runConfiguration->quieter) {
@@ -1063,6 +1082,168 @@ class L10nCommandController extends CommandController
         return $table;
     }
 
+    private function renderLlmTranslationsTable(array $mutations, CatalogIndex $catalogIndex, string $sourceLocale): ?string
+    {
+        /** @var list<CatalogMutation> $generated */
+        $generated = array_values(array_filter(
+            $mutations,
+            static fn (CatalogMutation $mutation): bool => $mutation->target !== ''
+        ));
+        if ($generated === []) {
+            return null;
+        }
+
+        $rows = [];
+        $translatedLocales = [];
+        foreach ($generated as $mutation) {
+            $key = $this->translationIdFromParts($mutation->packageKey, $mutation->sourceName, $mutation->identifier);
+            $rows[$key] ??= [
+                'packageKey' => $mutation->packageKey,
+                'sourceName' => $mutation->sourceName,
+                'identifier' => $mutation->identifier,
+                'fallback' => $mutation->fallback,
+                'translations' => [],
+            ];
+            $rows[$key]['translations'][$mutation->locale] = [
+                'value' => $mutation->target,
+                'existing' => false,
+            ];
+            $translatedLocales[$mutation->locale] = true;
+        }
+
+        foreach ($rows as $rowKey => &$row) {
+            $key = new TranslationKey($row['packageKey'], $row['sourceName'], $row['identifier']);
+            foreach ($catalogIndex->locales() as $locale) {
+                if ($locale === $sourceLocale) {
+                    continue;
+                }
+                $entry = $catalogIndex->entriesFor($locale, $key)[$row['identifier']] ?? null;
+                if ($entry === null || $entry->target === '') {
+                    continue;
+                }
+                if (!isset($row['translations'][$locale]) || ($row['translations'][$locale]['value'] ?? '') === '') {
+                    $row['translations'][$locale] = [
+                        'value' => sprintf('(%s)', $entry->target),
+                        'existing' => true,
+                    ];
+                }
+                $translatedLocales[$locale] = true;
+            }
+        }
+        unset($row);
+
+        $translatedLocales = array_keys($translatedLocales);
+        $translatedLocales = array_values(array_filter(
+            $translatedLocales,
+            static fn (string $locale): bool => $locale !== $sourceLocale
+        ));
+        sort($translatedLocales, SORT_NATURAL | SORT_FLAG_CASE);
+
+        foreach ($rows as &$row) {
+            $sourceTranslation = $row['translations'][$sourceLocale]['value'] ?? null;
+            $row['source'] = $sourceTranslation
+                ?? $this->sourceTextForMutation(
+                    $row['packageKey'],
+                    $row['sourceName'],
+                    $row['identifier'],
+                    $row['fallback'],
+                    $catalogIndex,
+                    $sourceLocale
+                );
+        }
+        unset($row);
+
+        ksort($rows, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $table = $this->createStyledTable();
+        $hidePackagePrefix = $this->isSinglePackage(array_column($rows, 'packageKey'));
+
+        foreach ($rows as $row) {
+            $tableRow = [
+                'Source/ID' => $this->formatSourceCell(
+                    $row['packageKey'],
+                    $row['sourceName'],
+                    $row['identifier'],
+                    $hidePackagePrefix
+                ),
+                $sourceLocale => $this->formatTranslationCell($row['source']),
+            ];
+
+            foreach ($translatedLocales as $locale) {
+                $tableRow[$locale] = $this->formatTranslationCell($row['translations'][$locale] ?? '');
+            }
+
+            $table->row($tableRow);
+        }
+
+        return 'LLM translations:' . PHP_EOL . (string)$table;
+    }
+
+    private function sourceTextForMutation(
+        string $packageKey,
+        string $sourceName,
+        string $identifier,
+        string $fallback,
+        CatalogIndex $catalogIndex,
+        string $sourceLocale
+    ): string {
+        $key = new TranslationKey($packageKey, $sourceName, $identifier);
+        $entries = $catalogIndex->entriesFor($sourceLocale, $key);
+        $entry = $entries[$identifier] ?? null;
+
+        return $entry?->target ?? $entry?->source ?? $fallback;
+    }
+
+    private function outputLlmReport(
+        array $mutations,
+        CatalogIndex $catalogIndex,
+        string $sourceLocale,
+        ?LlmRunStatistics $runStatistics,
+        bool $isJson,
+        bool $quiet,
+        bool $quieter
+    ): void {
+        if ($quieter) {
+            return;
+        }
+
+        $table = null;
+        if (!$quiet) {
+            $table = $this->renderLlmTranslationsTable($mutations, $catalogIndex, $sourceLocale);
+        }
+
+        if ($runStatistics !== null && !$isJson) {
+            $this->outputLine(
+                '%d LLM API calls, %s tokens in, %s tokens out',
+                [
+                    $runStatistics->apiCalls,
+                    number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
+                    number_format($runStatistics->estimatedOutputTokens, 0, '.', '.'),
+                ]
+            );
+            if ($table !== null) {
+                $this->outputLine();
+            }
+        }
+
+        if ($table !== null) {
+            $this->output($table);
+            $this->outputLine();
+        }
+    }
+
+    private function formatTranslationCell(array|string $translation): string
+    {
+        $value = is_array($translation) ? (string)($translation['value'] ?? '') : (string)$translation;
+        $existing = is_array($translation) ? (bool)($translation['existing'] ?? false) : false;
+
+        if ($existing && $value !== '') {
+            $value = $this->colorize($value, Table::COLOR_DARK_GRAY);
+        }
+
+        return implode(PHP_EOL, ['', $value]);
+    }
+
     private function formatSourceCell(
         string $packageKey,
         string $sourceName,
@@ -1179,5 +1360,10 @@ class L10nCommandController extends CommandController
     private function relativePath(string $path): string
     {
         return ltrim(str_replace(FLOW_PATH_ROOT, '', $path), '/');
+    }
+
+    private function translationIdFromParts(string $packageKey, string $sourceName, string $identifier): string
+    {
+        return sprintf('%s:%s:%s', $packageKey, $sourceName, $identifier);
     }
 }
