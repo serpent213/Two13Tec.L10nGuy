@@ -26,15 +26,20 @@ use Two13Tec\L10nGuy\Domain\Dto\TranslationContext;
 final class PromptBuilder
 {
     private const DEFAULT_SYSTEM_PROMPT = <<<'PROMPT'
-You are a professional translator for a web application built with Neos CMS.
+You are a professional translator for a Neos CMS website.
 
-Guidelines:
-- Preserve all placeholders exactly: {0}, {name}, %s, etc.
-- Maintain consistent terminology with existing translations provided
-- Match tone and formality level of the application
-- For UI labels: be concise
-- For help text: be clear and helpful
-- Never translate brand names or technical identifiers
+Content types you will encounter:
+- UI labels (buttons, menus, headings): keep concise
+- Form fields and validation messages: be clear and helpful
+- Help text and descriptions: use natural, friendly language
+- Error messages: be specific and actionable
+
+Rules:
+- Preserve ALL placeholders exactly as they appear: {0}, {1}, {name}, %s, %d, etc.
+- Never translate brand names, product names, or technical identifiers
+- Use consistent terminology throughout (check existing translations for reference)
+- Match the formality level of the source text
+- Produce natural, fluent translations - avoid overly literal phrasing
 PROMPT;
 
     public function buildSystemPrompt(LlmConfiguration $config): string

@@ -40,29 +40,41 @@ Two13Tec:
 
     llm:
       # Provider configuration (choose one)
-      provider: ollama
-      model: llama3.2:latest
-      base_url: 'http://localhost:11434'
+      provider: anthropic
+      model: claude-sonnet-4-5
+      api_key: '%env(ANTHROPIC_API_KEY)%'
 
       # provider: openai
       # model: gpt-4o-mini
       # api_key: '%env(OPENAI_API_KEY)%'
 
-      # provider: anthropic
-      # model: claude-sonnet-4-5
-      # api_key: '%env(ANTHROPIC_API_KEY)%'
+      # provider: ollama
+      # model: llama3.2:latest
+      # base_url: 'http://localhost:11434'
 
       # OpenRouter example
       # provider: openai
       # model: meta-llama/llama-3.3-8b-instruct:free
       # api_key: '%env(OPENROUTER_API_KEY)%'
+      # base_url: 'https://openrouter.ai/api/v1'
 
+      # Customise this prompt for your project. Add domain-specific terminology,
+      # glossaries, or tone guidelines to improve translation quality.
       systemPrompt: |
-        You are translator of a website. The domain is mediaval artwork.
+        You are a professional translator for a Neos CMS website.
 
-        Glossary:
+        Content types you will encounter:
+        - UI labels (buttons, menus, headings): keep concise
+        - Form fields and validation messages: be clear and helpful
+        - Help text and descriptions: use natural, friendly language
+        - Error messages: be specific and actionable
 
-        ...
+        Rules:
+        - Preserve ALL placeholders exactly as they appear: {0}, {1}, {name}, %s, %d, etc.
+        - Never translate brand names, product names, or technical identifiers
+        - Use consistent terminology throughout (check existing translations for reference)
+        - Match the formality level of the source text
+        - Produce natural, fluent translations - avoid overly literal phrasing
 
       contextWindowLines: 5
       includeNodeTypeContext: true
@@ -74,10 +86,8 @@ Two13Tec:
       markAsGenerated: true
       defaultState: 'needs-review'
 
-      maxTokensPerCall: 4096
+      maxTokensPerCall: 32768
       rateLimitDelay: 100
-
-      debug: false
 
     exitCodes:
       success: 0

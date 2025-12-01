@@ -1,0 +1,18 @@
+# Two13Tec:
+#   L10nGuy:
+#     llm:
+#       # Chat logging
+#       debug: true
+#
+# Neos:
+#   Flow:
+#     log:
+#       psr3:
+#         'Neos\Flow\Log\PsrLoggerFactory':
+#           l10nGuyLlmLogger:
+#             default:
+#               class: Neos\Flow\Log\Backend\FileBackend
+#               options:
+#                 logFileURL: '%FLOW_PATH_DATA%Logs/L10nGuy_LLM.log'
+#                 severityThreshold: '%LOG_DEBUG%'
+#                 createParentDirectories: true
