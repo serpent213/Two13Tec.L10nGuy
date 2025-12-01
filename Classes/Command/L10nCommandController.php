@@ -38,6 +38,7 @@ use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 use Two13Tec\L10nGuy\Llm\LlmTranslationService;
+use Two13Tec\L10nGuy\Utility\ProgressIndicator;
 
 /**
  * Flow CLI controller for `./flow l10n:*`.
@@ -183,8 +184,18 @@ class L10nCommandController extends CommandController
                 $this->outputLine('No catalog entries need to be created.');
             } elseif ($mutations !== []) {
                 if ($configuration->llm !== null && $configuration->llm->enabled) {
+                    $progressIndicator = null;
+                    if (!$isJson && !$configuration->quieter && !$configuration->llm->dryRun) {
+                        $progressIndicator = new ProgressIndicator('%d/%d API calls');
+                    }
+
                     try {
-                        $mutations = $this->llmTranslationService->translate($mutations, $scanResult, $configuration->llm);
+                        $mutations = $this->llmTranslationService->translate(
+                            $mutations,
+                            $scanResult,
+                            $configuration->llm,
+                            $progressIndicator
+                        );
                     } catch (LlmUnavailableException|LlmConfigurationException $exception) {
                         $this->outputLine('! %s', [$exception->getMessage()]);
                         $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
@@ -321,7 +332,17 @@ class L10nCommandController extends CommandController
         }
 
         try {
-            $mutations = $this->llmTranslationService->translate($mutations, $adjustedScanResult, $runConfiguration->llm);
+            $progressIndicator = null;
+            if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
+                $progressIndicator = new ProgressIndicator('%d/%d API calls');
+            }
+
+            $mutations = $this->llmTranslationService->translate(
+                $mutations,
+                $adjustedScanResult,
+                $runConfiguration->llm,
+                $progressIndicator
+            );
         } catch (LlmUnavailableException|LlmConfigurationException $exception) {
             $this->outputLine('! %s', [$exception->getMessage()]);
             $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));

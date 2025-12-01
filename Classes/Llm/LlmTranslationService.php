@@ -28,6 +28,7 @@ use Two13Tec\L10nGuy\Domain\Dto\TokenEstimation;
 use Two13Tec\L10nGuy\Domain\Dto\TranslationContext;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
+use Two13Tec\L10nGuy\Utility\ProgressIndicator;
 
 /**
  * Enriches catalog mutations with LLM-generated translations.
@@ -68,8 +69,12 @@ final class LlmTranslationService
      * @throws LlmUnavailableException
      * @throws LlmConfigurationException
      */
-    public function translate(array $mutations, ScanResult $scanResult, LlmConfiguration $config): array
-    {
+    public function translate(
+        array $mutations,
+        ScanResult $scanResult,
+        LlmConfiguration $config,
+        ?ProgressIndicator $progressIndicator = null
+    ): array {
         if ($mutations === [] || !$config->enabled) {
             return $mutations;
         }
@@ -88,6 +93,8 @@ final class LlmTranslationService
 
         $chain = $this->providerFactory->create();
         $batchSize = $config->batchSize;
+        $plannedApiCalls = $this->countPlannedApiCalls($groupedBySourceAndLocale, $batchSize);
+        $completedApiCalls = 0;
 
         foreach ($groupedBySourceAndLocale as $sourceKey => $localeGroups) {
             foreach ($localeGroups as $targetLocale => $groups) {
@@ -118,8 +125,17 @@ final class LlmTranslationService
                     if ($config->rateLimitDelay > 0) {
                         usleep($config->rateLimitDelay * 1000);
                     }
+
+                    $completedApiCalls++;
+                    if ($progressIndicator !== null && $plannedApiCalls > 0) {
+                        $progressIndicator->tick($completedApiCalls, $plannedApiCalls);
+                    }
                 }
             }
+        }
+
+        if ($progressIndicator !== null && $plannedApiCalls > 0) {
+            $progressIndicator->finish();
         }
 
         return $mutations;
@@ -182,6 +198,22 @@ final class LlmTranslationService
         }
 
         return $grouped;
+    }
+
+    /**
+     * @param array<string, array<string, list<array{mutation: CatalogMutation, missing: MissingTranslation}>>> $groupedBySourceAndLocale
+     */
+    private function countPlannedApiCalls(array $groupedBySourceAndLocale, int $batchSize): int
+    {
+        $planned = 0;
+
+        foreach ($groupedBySourceAndLocale as $localeGroups) {
+            foreach ($localeGroups as $groups) {
+                $planned += count($this->balancedChunk($groups, $batchSize));
+            }
+        }
+
+        return $planned;
     }
 
     /**
