@@ -263,6 +263,7 @@ final class ScanConfigurationFactory
             provider: $cliOptions['llmProvider'] ?? $settings['provider'] ?? null,
             model: $cliOptions['llmModel'] ?? $settings['model'] ?? null,
             dryRun: (bool)($cliOptions['dryRun'] ?? false),
+            sourceLocale: $cliOptions['sourceLocale'] ?? $settings['sourceLocale'] ?? 'en',
             batchSize: $batchSize,
             maxCrossReferenceLocales: $maxCrossReferenceLocales,
             contextWindowLines: $contextWindowLines,

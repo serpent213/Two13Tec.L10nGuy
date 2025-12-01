@@ -61,6 +61,9 @@ Two13Tec:
       # api_key: '%env(OPENROUTER_API_KEY)%'
       # base_url: 'https://openrouter.ai/api/v1'
 
+      # Source locale for LLM translations (catalog text from this locale is used as translation source)
+      sourceLocale: 'en'
+
       # Customise this prompt for your project. Add domain-specific terminology,
       # glossaries, or tone guidelines to improve translation quality.
       systemPrompt: |

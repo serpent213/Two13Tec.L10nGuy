@@ -32,6 +32,7 @@ final readonly class LlmConfiguration
         public ?string $provider = null,
         public ?string $model = null,
         public bool $dryRun = false,
+        public ?string $sourceLocale = null,
         public int $batchSize = self::DEFAULT_BATCH_SIZE,
         public int $maxCrossReferenceLocales = self::DEFAULT_MAX_CROSS_REFERENCE_LOCALES,
         public int $contextWindowLines = self::DEFAULT_CONTEXT_WINDOW_LINES,

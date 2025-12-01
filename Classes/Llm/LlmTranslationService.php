@@ -151,7 +151,7 @@ final class LlmTranslationService
             $progressIndicator->finish();
         }
 
-        $this->propagateSourceTranslations($mutations, 'en');
+        $this->propagateSourceTranslations($mutations, $config->sourceLocale ?? 'en');
 
         return $mutations;
     }

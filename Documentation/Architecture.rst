@@ -153,9 +153,9 @@ Writer guarantees:
 LLM Translation
 ---------------
 
-When ``--llm`` is passed to ``l10n:scan`` or the ``l10n:translate`` command is
-used, the pipeline enriches catalog mutations with AI-generated translations
-before writing. The subsystem lives under ``Llm/`` and comprises:
+When ``--llm`` is passed to ``l10n:scan``, the pipeline enriches catalog mutations
+with AI-generated translations before writing. The subsystem lives under ``Llm/``
+and comprises:
 
 ``LlmTranslationService``
    Orchestrates the translation workflow: groups mutations by source and locale,
@@ -193,6 +193,8 @@ before writing. The subsystem lives under ``Llm/`` and comprises:
 LLM-related configuration is encapsulated in ``LlmConfiguration`` and includes:
 
 * ``provider`` / ``model`` -- LLM backend selection
+* ``sourceLocale`` -- source locale for translations; catalog text from this locale
+  is used as translation source instead of code fallbacks (default: ``en``)
 * ``batchSize`` -- items per API call (default 11)
 * ``maxCrossReferenceLocales`` -- how many existing locale translations to
   include for context (default 6)
@@ -210,12 +212,9 @@ Command Surface
 ``L10nCommandController`` orchestrates the pipeline::
 
    ./flow l10n:scan      [--package ...] [--source ...] [--locales ...] [--id ...]
-                         [--update] [--llm] [--llm-provider ...] [--llm-model ...]
-                         [--dry-run] [--format table|json] [--quiet] [--quieter]
-
-   ./flow l10n:translate --to <locale> [--from <locale>] [--package ...] [--source ...]
-                         [--id ...] [--llm-provider ...] [--llm-model ...]
-                         [--dry-run] [--quiet] [--quieter]
+                         [--update] [--llm] [--source-locale ...] [--llm-provider ...]
+                         [--llm-model ...] [--dry-run] [--format table|json]
+                         [--quiet] [--quieter]
 
    ./flow l10n:unused    [--package ...] [--source ...] [--locales ...] [--id ...]
                          [--delete] [--format table|json] [--quiet] [--quieter]
@@ -226,6 +225,11 @@ Key flags:
 
 ``--llm``
    Enable LLM-based translation when creating missing entries.
+
+``--source-locale``
+   Source locale for LLM translations. When specified, catalog text from this
+   locale is used as the translation source instead of code fallbacks. Defaults
+   to configured ``llm.sourceLocale`` or ``en``.
 
 ``--dry-run``
    Estimate LLM token usage without making API calls.

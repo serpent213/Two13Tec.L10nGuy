@@ -4,10 +4,9 @@ Flow CLI localisation companion that keeps Neos translation catalogs in sync wit
 
 ## Features
 
-- `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source. Optionally uses an LLM for heuristic translation.
+- `./flow l10n:scan` – builds reference & catalog indexes, reports missing translations, warns about placeholder drift, and optionally writes new `<trans-unit>` entries grouped per locale/package/source. Optionally uses an LLM for heuristic translation of new or existing entries.
 - `./flow l10n:unused` – lists catalog entries that no longer have a matching reference; can delete unused nodes in place to keep XLFs tidy.
-- `./flow l10n:format` – re-renders existing catalogs using the helper’s writer so indentation, attribute ordering, and trailing newlines stay consistent (supports `--check` for CI).
-- `./flow l10n:translate` – bulk-translates missing entries to a target locale via LLM with dry-run estimation.
+- `./flow l10n:format` – re-renders existing catalogs using the helper's writer so indentation, attribute ordering, and trailing newlines stay consistent (supports `--check` for CI).
 - Shared diagnostics: table or JSON output, deterministic exit codes for CI pipelines, detailed logging of XML parse errors, duplicates, and missing catalogs.
 - Comprehensive fixtures + functional tests mirror real-life components
 
@@ -51,8 +50,9 @@ Run `just docs` to generate an HTML version in `Documentation/_build/html`.
 # Preview the same run without touching catalogs; reports token estimates
 ./flow l10n:scan --update --llm --dry-run --package Acme.Senegal --locales fr
 
-# Bulk-translate existing catalogs into a new locale
-./flow l10n:translate fr --package Acme.Senegal --source Presentation.Cards
+# Bulk-translate existing catalogs from English to French
+# Uses catalog content from 'en' locale as source text
+./flow l10n:scan --update --llm --source-locale en --locales fr --package Acme.Senegal
 ```
 
 ## Supported reference patterns

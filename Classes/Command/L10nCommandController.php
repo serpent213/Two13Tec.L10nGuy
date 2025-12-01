@@ -60,7 +60,6 @@ class L10nCommandController extends CommandController
     private const EXIT_KEY_FAILURE = 'failure';
     private const EXIT_KEY_DIRTY = 'dirty';
     private const EXIT_KEY_UNUSED = 'unused';
-    private const SOURCE_LOCALE = 'en';
 
     #[Flow\Inject]
     protected ScanConfigurationFactory $scanConfigurationFactory;
@@ -124,6 +123,7 @@ class L10nCommandController extends CommandController
      * @param string|null $format Output format: table (default) or json
      * @param bool|null $update Write missing catalog entries to XLF files
      * @param bool|null $llm Enable LLM-based translation of missing entries
+     * @param string|null $sourceLocale Source locale for LLM translations (defaults to configuration or 'en')
      * @param string|null $llmProvider Override the configured LLM provider
      * @param string|null $llmModel Override the configured LLM model
      * @param bool|null $dryRun Estimate LLM tokens without making API calls; inhibits catalog writes even when --update is set
@@ -140,6 +140,7 @@ class L10nCommandController extends CommandController
         ?string $format = null,
         ?bool $update = null,
         ?bool $llm = null,
+        ?string $sourceLocale = null,
         ?string $llmProvider = null,
         ?string $llmModel = null,
         ?bool $dryRun = null,
@@ -156,6 +157,7 @@ class L10nCommandController extends CommandController
             'format' => $format,
             'update' => $update,
             'llm' => $llm,
+            'sourceLocale' => $sourceLocale,
             'llmProvider' => $llmProvider,
             'llmModel' => $llmModel,
             'dryRun' => $dryRun,
@@ -198,6 +200,17 @@ class L10nCommandController extends CommandController
 
         if ($configuration->update) {
             $mutations = $this->catalogMutationFactory->fromScanResult($scanResult);
+
+            $sourceLocale = $configuration->llm?->sourceLocale ?? 'en';
+
+            if ($configuration->llm !== null && $configuration->llm->enabled && $mutations !== []) {
+                $mutations = $this->enrichMutationsWithCatalogSource(
+                    $mutations,
+                    $scanResult->catalogIndex,
+                    $sourceLocale
+                );
+            }
+
             if (!$isJson && !$configuration->quieter && $mutations === []) {
                 $this->outputLine('No catalog entries need to be created.');
             } elseif ($mutations !== []) {
@@ -230,7 +243,7 @@ class L10nCommandController extends CommandController
                         $this->outputLlmReport(
                             $mutations,
                             $scanResult->catalogIndex,
-                            self::SOURCE_LOCALE,
+                            $sourceLocale,
                             null,
                             $isJson,
                             $configuration->quiet,
@@ -242,7 +255,7 @@ class L10nCommandController extends CommandController
                     $this->outputLlmReport(
                         $mutations,
                         $scanResult->catalogIndex,
-                        self::SOURCE_LOCALE,
+                        $sourceLocale,
                         $runStatistics,
                         $isJson,
                         $configuration->quiet,
@@ -266,168 +279,6 @@ class L10nCommandController extends CommandController
         $exitCode = $this->scanReportRenderer->resolveExitCode($scanResult, $this->exitCodes);
         if ($exitCode !== $this->exitCode(self::EXIT_KEY_SUCCESS, 0)) {
             $this->quit($exitCode);
-        }
-    }
-
-    /**
-     * Bulk translate catalog entries to a new locale using LLM.
-     *
-     * @param string $to Target locale for translation
-     * @param string|null $from Source locale (auto-detected when omitted)
-     * @param string|null $package Package key to translate
-     * @param string|null $source Source restriction (e.g., Presentation.Cards)
-     * @param string|null $id Translation ID glob pattern
-     * @param string|null $path Optional search root for references and catalogs
-     * @param string|null $llmProvider Override the configured LLM provider
-     * @param string|null $llmModel Override the configured LLM model
-     * @param bool|null $dryRun Estimate tokens without making API calls; inhibits catalog writes
-     * @param bool|null $quiet Suppress table output
-     * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
-     */
-    public function translateCommand(
-        string $to,
-        ?string $from = null,
-        ?string $package = null,
-        ?string $source = null,
-        ?string $id = null,
-        ?string $path = null,
-        ?string $llmProvider = null,
-        ?string $llmModel = null,
-        ?bool $dryRun = null,
-        ?bool $quiet = null,
-        ?bool $quieter = null
-    ): void {
-        $baseConfiguration = $this->scanConfigurationFactory->createFromCliOptions([
-            'package' => $package,
-            'source' => $source,
-            'paths' => $path ? [$path] : [],
-            'locales' => $from !== null ? [$from, $to] : [$to],
-            'id' => $id,
-            'update' => true,
-            'llm' => true,
-            'llmProvider' => $llmProvider,
-            'llmModel' => $llmModel,
-            'dryRun' => $dryRun,
-            'quiet' => $quiet,
-            'quieter' => $quieter,
-        ]);
-
-        $catalogConfiguration = $this->copyConfigurationWithLocales($baseConfiguration, []);
-
-        if (!$baseConfiguration->quieter) {
-            $this->outputLine(
-                'Prepared translation to %s (package: %s, source filter: %s).',
-                [
-                    $to,
-                    $baseConfiguration->packageKey ?? 'all packages',
-                    $baseConfiguration->sourceName ?? '<none>',
-                ]
-            );
-        }
-
-        $this->fileDiscoveryService->seedFromConfiguration($catalogConfiguration);
-
-        $referenceIndex = $this->referenceIndexBuilder->build($baseConfiguration);
-        $catalogIndex = $this->catalogIndexBuilder->build($catalogConfiguration);
-
-        $sourceLocale = $this->detectSourceLocale($catalogIndex, $to, $from);
-        if ($sourceLocale === null) {
-            $this->outputLine('! Unable to determine source locale. Provide --from to continue.');
-            $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
-        }
-
-        $runConfiguration = $this->copyConfigurationWithLocales($baseConfiguration, array_values(array_unique([$sourceLocale, $to])));
-
-        $scanResult = $this->scanResultBuilder->build($runConfiguration, $referenceIndex, $catalogIndex);
-        $missingForTarget = array_values(array_filter(
-            $scanResult->missingTranslations,
-            static fn (MissingTranslation $missing): bool => $missing->locale === $to
-        ));
-
-        if ($missingForTarget === []) {
-            if (!$runConfiguration->quieter) {
-                $this->outputLine('No entries need translation from %s to %s.', [$sourceLocale, $to]);
-            }
-            return;
-        }
-
-        if (!$runConfiguration->quieter) {
-            $this->outputLine(
-                'Found %d entries to translate from %s to %s.',
-                [count($missingForTarget), $sourceLocale, $to]
-            );
-        }
-
-        $adjustedScanResult = new ScanResult(
-            $this->buildBulkMissingTranslations($missingForTarget, $catalogIndex, $sourceLocale),
-            [],
-            $referenceIndex,
-            $catalogIndex
-        );
-
-        $mutations = $this->catalogMutationFactory->fromScanResult($adjustedScanResult);
-
-        if ($runConfiguration->llm === null) {
-            $this->outputLine('! LLM configuration is missing; translation cannot proceed.');
-            $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
-        }
-
-        $runStatistics = null;
-        try {
-            $progressIndicator = null;
-            if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
-                $modelLabel = $runConfiguration->llm->model ?? 'model?';
-                $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d LLM API calls (%s)', $modelLabel));
-                $runStatistics = new LlmRunStatistics();
-            }
-
-            $mutations = $this->llmTranslationService->translate(
-                $mutations,
-                $adjustedScanResult,
-                $runConfiguration->llm,
-                $progressIndicator,
-                $runStatistics
-            );
-        } catch (LlmUnavailableException|LlmConfigurationException $exception) {
-            $this->outputLine('! %s', [$exception->getMessage()]);
-            $this->quit($this->exitCode(self::EXIT_KEY_FAILURE, 7));
-        }
-
-        if ($runConfiguration->llm->dryRun) {
-            if (!$runConfiguration->quieter) {
-                $this->outputLine('LLM dry-run completed; catalogs were not modified.');
-            }
-            $this->outputLlmReport(
-                $mutations,
-                $catalogIndex,
-                $sourceLocale,
-                null,
-                false,
-                $runConfiguration->quiet,
-                $runConfiguration->quieter
-            );
-            return;
-        }
-
-        $this->outputLlmReport(
-            $mutations,
-            $catalogIndex,
-            $sourceLocale,
-            $runStatistics,
-            false,
-            $runConfiguration->quiet,
-            $runConfiguration->quieter
-        );
-
-        $touched = $this->catalogWriter->write($mutations, $catalogIndex, $runConfiguration);
-        if (!$runConfiguration->quieter) {
-            if ($touched === []) {
-                $this->outputLine('Catalog writer did not touch any files.');
-            } else {
-                foreach ($touched as $file) {
-                    $this->outputLine('Touched catalog: %s', [PathResolver::relativePath($file)]);
-                }
-            }
         }
     }
 
@@ -614,97 +465,36 @@ class L10nCommandController extends CommandController
     }
 
     /**
-     * @return list<MissingTranslation>
+     * Enrich mutations with source text from the source locale's catalog.
+     *
+     * When a translation exists in the source locale catalog, use it as the
+     * fallback text instead of the code-extracted fallback (e.g., identifier).
+     *
+     * @param list<CatalogMutation> $mutations
+     * @return list<CatalogMutation>
      */
-    private function buildBulkMissingTranslations(array $missingTranslations, CatalogIndex $catalogIndex, string $sourceLocale): array
-    {
-        $result = [];
-        foreach ($missingTranslations as $missing) {
-            $fallback = $this->fallbackForMissing($missing, $catalogIndex, $sourceLocale);
-            $reference = $missing->reference;
-
-            $result[] = new MissingTranslation(
-                locale: $missing->locale,
-                key: $missing->key,
-                reference: new TranslationReference(
-                    packageKey: $reference->packageKey,
-                    sourceName: $reference->sourceName,
-                    identifier: $reference->identifier,
-                    context: $reference->context,
-                    filePath: $reference->filePath,
-                    lineNumber: $reference->lineNumber,
-                    fallback: $fallback,
-                    placeholders: $reference->placeholders,
-                    isPlural: $reference->isPlural,
-                    nodeTypeContext: $reference->nodeTypeContext
-                )
+    private function enrichMutationsWithCatalogSource(
+        array $mutations,
+        CatalogIndex $catalogIndex,
+        string $sourceLocale
+    ): array {
+        foreach ($mutations as $mutation) {
+            $key = new TranslationKey(
+                $mutation->packageKey,
+                $mutation->sourceName,
+                $mutation->identifier
             );
-        }
+            $entries = $catalogIndex->entriesFor($sourceLocale, $key);
+            $entry = $entries[$mutation->identifier] ?? null;
 
-        return $result;
-    }
-
-    private function fallbackForMissing(MissingTranslation $missing, CatalogIndex $catalogIndex, string $sourceLocale): string
-    {
-        $entries = $catalogIndex->entriesFor($sourceLocale, $missing->key);
-        $entry = $entries[$missing->key->identifier] ?? null;
-        $fallback = $entry?->target ?? $entry?->source ?? $missing->reference->fallback ?? '';
-
-        if ($fallback !== '') {
-            return $fallback;
-        }
-
-        return $this->fallbackWithPlaceholderHints($missing->key->identifier, $missing->reference->placeholders);
-    }
-
-    private function fallbackWithPlaceholderHints(string $identifier, array $placeholderMap): string
-    {
-        if ($placeholderMap === []) {
-            return $identifier;
-        }
-
-        $placeholders = array_map(
-            static fn (string $name): string => sprintf('{%s}', $name),
-            array_keys($placeholderMap)
-        );
-
-        return trim($identifier . ' ' . implode(' ', $placeholders));
-    }
-
-    private function detectSourceLocale(CatalogIndex $catalogIndex, string $targetLocale, ?string $requestedSource): ?string
-    {
-        if ($requestedSource !== null && $requestedSource !== '') {
-            return $requestedSource;
-        }
-
-        foreach ($catalogIndex->locales() as $locale) {
-            if ($locale === $targetLocale) {
-                continue;
+            $catalogText = $entry?->target ?? $entry?->source ?? null;
+            if ($catalogText !== null && $catalogText !== '') {
+                $mutation->fallback = $catalogText;
+                $mutation->source = $catalogText;
             }
-            return $locale;
         }
 
-        return null;
-    }
-
-    private function copyConfigurationWithLocales(ScanConfiguration $configuration, array $locales): ScanConfiguration
-    {
-        return new ScanConfiguration(
-            locales: $locales,
-            packageKey: $configuration->packageKey,
-            sourceName: $configuration->sourceName,
-            idPattern: $configuration->idPattern,
-            paths: $configuration->paths,
-            format: $configuration->format,
-            update: $configuration->update,
-            newState: $configuration->newState,
-            newStateQualifier: $configuration->newStateQualifier,
-            ignorePlaceholderWarnings: $configuration->ignorePlaceholderWarnings,
-            meta: $configuration->meta,
-            quiet: $configuration->quiet,
-            quieter: $configuration->quieter,
-            llm: $configuration->llm
-        );
+        return $mutations;
     }
 
     private function renderScanReport(ScanResult $scanResult, ScanConfiguration $configuration): void
