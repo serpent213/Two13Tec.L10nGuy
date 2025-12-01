@@ -744,13 +744,13 @@ class L10nCommandController extends CommandController
             foreach ($missingTranslations as $missing) {
                 $reference = $missing->reference;
                 $table->row([
-                    'Source' => $this->formatSourceCell(
+                    'Source/ID' => $this->formatSourceCell(
                         $missing->key->packageKey,
                         $missing->key->sourceName,
                         $missing->key->identifier,
                         $hidePackagePrefix
                     ),
-                    'File' => $this->formatFileColumn($reference->filePath, $reference->lineNumber),
+                    'File' => $this->formatFileColumn($table, $reference->filePath, $reference->lineNumber),
                 ]);
             }
 
@@ -874,13 +874,13 @@ class L10nCommandController extends CommandController
 
             foreach ($entries as $entry) {
                 $table->row([
-                    'Source' => $this->formatSourceCell(
+                    'Source/ID' => $this->formatSourceCell(
                         $entry->packageKey,
                         $entry->sourceName,
                         $entry->identifier,
                         $hidePackagePrefix
                     ),
-                    'File' => $this->formatFileColumn($entry->filePath),
+                    'File' => $this->formatFileColumn($table, $entry->filePath),
                 ]);
             }
 
@@ -1039,7 +1039,7 @@ class L10nCommandController extends CommandController
         return preg_match($regex, $value) === 1;
     }
 
-    private function formatFileColumn(string $filePath, ?int $lineNumber = null): string
+    private function formatFileColumn(Table $table, string $filePath, ?int $lineNumber = null): string
     {
         $relative = $this->relativePath($filePath);
         $prefix = 'DistributionPackages/Two13Tec.Senegal/';
@@ -1047,7 +1047,12 @@ class L10nCommandController extends CommandController
             $relative = substr($relative, strlen($prefix));
         }
 
-        $location = $lineNumber !== null ? sprintf('%s:%d', $relative, $lineNumber) : $relative;
+        $location = $relative;
+        if ($lineNumber !== null) {
+            $dataStyles = $table->dataStylesForColumn('File');
+            $location .= Table::wrapWithStyles(':', [Table::COLOR_DARK_GRAY], $dataStyles);
+            $location .= Table::wrapWithStyles((string)$lineNumber, [Table::COLOR_LIGHT_GRAY], $dataStyles);
+        }
 
         return implode(PHP_EOL, ['', $location]);
     }

@@ -60,7 +60,7 @@ class Table
         'top-left'     => '┏',
         'top-right'    => '┓',
         'bottom'       => '━',
-        'bottom-mid'   => '┸',
+        'bottom-mid'   => '┷',
         'bottom-left'  => '┗',
         'bottom-right' => '┛',
         'left'         => '┃',
@@ -77,6 +77,32 @@ class Table
 
     public function __construct()
     {
+    }
+
+    public static function styleSequence(int ...$styles): string
+    {
+        if ($styles === []) {
+            return '';
+        }
+
+        return "\e[" . \implode(';', $styles) . 'm';
+    }
+
+    /**
+     * Wrap a string with inline styles and optionally resume the given styles afterwards.
+     *
+     * @param array<int> $styles
+     * @param array<int> $resumeStyles
+     */
+    public static function wrapWithStyles(string $value, array $styles, array $resumeStyles = []): string
+    {
+        if ($styles === []) {
+            return $value;
+        }
+
+        $resume = self::styleSequence(...$resumeStyles);
+
+        return self::styleSequence(...$styles) . $value . "\e[0m" . $resume;
     }
 
     public function __toString(): string
@@ -129,6 +155,17 @@ class Table
         return $this;
     }
 
+    /**
+     * @return array<int>
+     */
+    public function dataStylesForColumn(string $column): array
+    {
+        return [
+            ...$this->cellStyle,
+            ...($this->columnCellStyle[$column] ?? []),
+        ];
+    }
+
     public function row(array $assoc): self
     {
         $row = [];
@@ -176,9 +213,6 @@ class Table
                 $cell = $row[$column] ?? '[NULL]';
                 foreach ($this->splitLines($cell) as $line) {
                     $len = \max($columnLengths[$column], $this->strlenVisible($line));
-                    if ($len % 2 !== 0) {
-                        ++$len;
-                    }
                     $columnLengths[$column] = $len;
                 }
             }
@@ -189,7 +223,7 @@ class Table
         unset($length);
 
         $res = $this->getTableTopContent($columnLengths)
-            . $this->getFormattedRowContent($headerData, $columnLengths, "\e[" . \implode(';', $this->headerStyle) . "m", true)
+            . $this->getFormattedRowContent($headerData, $columnLengths, self::styleSequence(...$this->headerStyle), true)
             . $this->getTableSeparatorContent($columnLengths);
         foreach ($this->rows as $row) {
             foreach ($headerData as $column) {
@@ -197,7 +231,7 @@ class Table
                     $row[$column] = '[NULL]';
                 }
             }
-            $res .= $this->getFormattedRowContent($row, $columnLengths, "\e[" . \implode(';', $this->cellStyle) . "m");
+            $res .= $this->getFormattedRowContent($row, $columnLengths, self::styleSequence(...$this->cellStyle));
         }
         return $res . $this->getTableBottomContent($columnLengths);
     }
@@ -222,7 +256,7 @@ class Table
                 $line = ' ' . $line;
                 $len = $this->strlenVisible($line) - $lengths[$key] + 1;
                 if ($isHeader === false && isset($this->columnCellStyle[$key]) && $this->columnCellStyle[$key] !== []) {
-                    $customFormat = "\e[" . \implode(';', $this->columnCellStyle[$key]) . "m";
+                    $customFormat = self::styleSequence(...$this->columnCellStyle[$key]);
                 }
                 $rows[] = ($format !== '' ? $format : '')
                     . ($customFormat !== '' ? $customFormat : '')
