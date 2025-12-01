@@ -166,6 +166,8 @@ Two13Tec:
 
 `--llm-provider` / `--llm-model` override the configured defaults per run. `--systemPrompt` is not a CLI flag—set it in configuration when you need to steer tone or add policy notes. Combine `--llm` with `--dry-run` to skip API calls and avoid writes even if `--update` is supplied.
 
+> **Note:** The source language for LLM translations is hardcoded to `en` (English). When translating to multiple locales, the LLM-polished English text is propagated to target-language catalogs' `<source>` elements so translators see source text alongside the translations.
+
 ## Development workflow
 
 Inside `DistributionPackages/Two13Tec.L10nGuy` you can use the bundled `just` targets (ensure the project dev shell is active first):

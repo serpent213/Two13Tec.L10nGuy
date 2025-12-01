@@ -151,6 +151,8 @@ final class LlmTranslationService
             $progressIndicator->finish();
         }
 
+        $this->propagateSourceTranslations($mutations, 'en');
+
         return $mutations;
     }
 
@@ -596,6 +598,47 @@ final class LlmTranslationService
         return sprintf('%s:%s:%s', $packageKey, $sourceName, $identifier);
     }
 
+    /**
+     * Propagate source-language translations to target-language mutations.
+     *
+     * After LLM translation, the source locale's mutation->target contains the polished
+     * source text. This method copies that value to target-language mutations' source
+     * field so XLF files show the polished text in <source> elements.
+     *
+     * @param list<CatalogMutation> $mutations
+     * @param string $sourceLocale The source language locale (e.g., 'en')
+     */
+    private function propagateSourceTranslations(array $mutations, string $sourceLocale): void
+    {
+        $sourceTranslations = [];
+        foreach ($mutations as $mutation) {
+            if ($mutation->locale === $sourceLocale && $mutation->isLlmGenerated) {
+                $key = $this->translationIdFromParts(
+                    $mutation->packageKey,
+                    $mutation->sourceName,
+                    $mutation->identifier
+                );
+                $sourceTranslations[$key] = $mutation->target;
+            }
+        }
+
+        if ($sourceTranslations === []) {
+            return;
+        }
+
+        foreach ($mutations as $mutation) {
+            if ($mutation->locale !== $sourceLocale) {
+                $key = $this->translationIdFromParts(
+                    $mutation->packageKey,
+                    $mutation->sourceName,
+                    $mutation->identifier
+                );
+                if (isset($sourceTranslations[$key])) {
+                    $mutation->source = $sourceTranslations[$key];
+                }
+            }
+        }
+    }
 
     /**
      * @param list<array{mutations: list<CatalogMutation>, missing: MissingTranslation}> $groups
