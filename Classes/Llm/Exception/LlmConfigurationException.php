@@ -14,6 +14,4 @@ namespace Two13Tec\L10nGuy\Llm\Exception;
  * source code.
  */
 
-final class LlmConfigurationException extends \RuntimeException
-{
-}
+final class LlmConfigurationException extends \RuntimeException {}

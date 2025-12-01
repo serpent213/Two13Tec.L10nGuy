@@ -42,6 +42,5 @@ final readonly class ScanConfiguration
         public bool $quiet = false,
         public bool $quieter = false,
         public ?LlmConfiguration $llm = null,
-    ) {
-    }
+    ) {}
 }

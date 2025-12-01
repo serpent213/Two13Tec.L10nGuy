@@ -176,8 +176,8 @@ final class LlmTranslationService
             return [$items];
         }
 
-        $numChunks = (int)ceil($count / $maxPerChunk);
-        $chunkSize = (int)ceil($count / $numChunks);
+        $numChunks = (int) ceil($count / $maxPerChunk);
+        $chunkSize = (int) ceil($count / $numChunks);
 
         return array_chunk($items, $chunkSize);
     }
@@ -482,7 +482,7 @@ final class LlmTranslationService
     private function mapItemsForPrompt(array $items): array
     {
         return array_map(
-            fn (array $item): array => array_merge(
+            fn(array $item): array => array_merge(
                 $item,
                 ['translationId' => $this->translationId($item['missing'])]
             ),
@@ -547,7 +547,7 @@ final class LlmTranslationService
      */
     private function collectLocales(array $mutations): array
     {
-        $locales = array_map(static fn (CatalogMutation $mutation): string => $mutation->locale, $mutations);
+        $locales = array_map(static fn(CatalogMutation $mutation): string => $mutation->locale, $mutations);
         $locales = array_values(array_unique($locales));
         sort($locales, SORT_NATURAL | SORT_FLAG_CASE);
 
@@ -578,7 +578,7 @@ final class LlmTranslationService
         preg_match_all('/\{([A-Za-z0-9_.:-]+)\}/', $value, $matches);
         $placeholders = array_filter(
             $matches[1] ?? [],
-            static fn (string $placeholder): bool => $placeholder !== ''
+            static fn(string $placeholder): bool => $placeholder !== ''
         );
 
         return array_values(array_unique($placeholders));
@@ -686,7 +686,7 @@ final class LlmTranslationService
     private function countTranslations(array $batch): int
     {
         return array_sum(
-            array_map(static fn (array $group): int => count($group['mutations']), $batch)
+            array_map(static fn(array $group): int => count($group['mutations']), $batch)
         );
     }
 

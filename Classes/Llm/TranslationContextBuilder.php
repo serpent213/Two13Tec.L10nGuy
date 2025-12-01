@@ -29,8 +29,7 @@ final class TranslationContextBuilder
 {
     public function __construct(
         private readonly SourceContextExtractor $sourceContextExtractor
-    ) {
-    }
+    ) {}
 
     public function build(
         MissingTranslation $missing,

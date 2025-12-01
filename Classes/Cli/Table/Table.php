@@ -75,9 +75,7 @@ class Table
     /** @var array<int, array<string, string>> */
     private array $rows = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public static function styleSequence(int ...$styles): string
     {
@@ -182,10 +180,10 @@ class Table
                 } elseif (\is_bool($value)) {
                     $value = $value === false ? '[FALSE]' : '[TRUE]';
                 } else {
-                    $value = (string)$value;
+                    $value = (string) $value;
                 }
             }
-            $key = \trim((string)$key);
+            $key = \trim((string) $key);
             $row[$key] = \trim($value, " \t\0\x0B\r");
         }
         $this->rows[] = $row;
@@ -262,7 +260,7 @@ class Table
                     . ($customFormat !== '' ? $customFormat : '')
                     . $line
                     . ($format !== '' || $customFormat !== '' ? "\e[0m" : '')
-                    . \str_repeat(' ', (int)\abs($len));
+                    . \str_repeat(' ', (int) \abs($len));
             }
             $res .= \implode($this->getChar('middle'), $rows);
             $res .= $this->getChar('right') . \PHP_EOL;

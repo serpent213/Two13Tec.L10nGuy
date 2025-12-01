@@ -45,6 +45,5 @@ final readonly class LlmConfiguration
         public int $rateLimitDelay = self::DEFAULT_RATE_LIMIT_DELAY,
         public string $systemPrompt = '',
         public bool $debug = false,
-    ) {
-    }
+    ) {}
 }

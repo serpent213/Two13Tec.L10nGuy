@@ -29,6 +29,5 @@ final readonly class TranslationContext
         public ?string $sourceSnippet = null,
         public ?string $nodeTypeContext = null,
         public array $existingTranslations = [],
-    ) {
-    }
+    ) {}
 }

@@ -18,7 +18,6 @@ use Neos\Flow\Cli\ConsoleOutput;
 use Neos\Flow\Cli\Exception\StopCommandException;
 use Neos\Flow\Cli\Response as CliResponse;
 use Two13Tec\L10nGuy\Command\L10nCommandController;
-use Two13Tec\L10nGuy\Tests\Functional\BufferedConsoleOutput;
 
 final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
 {
@@ -47,7 +46,7 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
 
         self::assertSame(5, $exitCode);
         $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
-        $authorMissing = array_values(array_filter($payload['missing'], static fn (array $row) => $row['id'] === 'cards.authorPublishedBy'));
+        $authorMissing = array_values(array_filter($payload['missing'], static fn(array $row) => $row['id'] === 'cards.authorPublishedBy'));
         self::assertCount(1, $authorMissing);
         self::assertSame('en', $authorMissing[0]['locale']);
         self::assertArrayHasKey('warnings', $payload);
@@ -67,7 +66,7 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
         $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
         $contactFormLabels = array_values(array_filter(
             $payload['missing'] ?? [],
-            static fn (array $row): bool => $row['source'] === 'NodeTypes.Content.ContactForm'
+            static fn(array $row): bool => $row['source'] === 'NodeTypes.Content.ContactForm'
                 && $row['id'] === 'properties.subject'
         ));
 

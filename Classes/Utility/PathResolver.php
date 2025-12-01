@@ -11,9 +11,7 @@ use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
  */
 final class PathResolver
 {
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     public static function isAbsolute(string $path): bool
     {

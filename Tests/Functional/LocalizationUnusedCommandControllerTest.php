@@ -18,7 +18,6 @@ use Neos\Flow\Cli\ConsoleOutput;
 use Neos\Flow\Cli\Exception\StopCommandException;
 use Neos\Flow\Cli\Response as CliResponse;
 use Two13Tec\L10nGuy\Command\L10nCommandController;
-use Two13Tec\L10nGuy\Tests\Functional\BufferedConsoleOutput;
 
 final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCase
 {
@@ -35,7 +34,7 @@ final class LocalizationUnusedCommandControllerTest extends SenegalFixtureTestCa
         $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
         $moreButton = array_values(array_filter(
             $payload['unused'] ?? [],
-            static fn (array $row) => $row['id'] === 'cards.moreButton'
+            static fn(array $row) => $row['id'] === 'cards.moreButton'
         ));
         self::assertNotEmpty($moreButton);
         self::assertSame('Two13Tec.Senegal', $moreButton[0]['package']);

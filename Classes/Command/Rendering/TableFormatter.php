@@ -70,7 +70,7 @@ class TableFormatter
         if ($lineNumber !== null) {
             $dataStyles = $table->dataStylesForColumn('File');
             $location .= Table::wrapWithStyles(':', [Table::COLOR_DARK_GRAY], $dataStyles);
-            $location .= Table::wrapWithStyles((string)$lineNumber, [Table::COLOR_LIGHT_GRAY], $dataStyles);
+            $location .= Table::wrapWithStyles((string) $lineNumber, [Table::COLOR_LIGHT_GRAY], $dataStyles);
         }
 
         return implode(PHP_EOL, ['', $location]);
@@ -81,8 +81,8 @@ class TableFormatter
      */
     public function formatTranslationCell(array|string $translation): string
     {
-        $value = is_array($translation) ? (string)($translation['value'] ?? '') : (string)$translation;
-        $existing = is_array($translation) ? (bool)($translation['existing'] ?? false) : false;
+        $value = is_array($translation) ? (string) ($translation['value'] ?? '') : (string) $translation;
+        $existing = is_array($translation) ? (bool) ($translation['existing'] ?? false) : false;
 
         if ($existing && $value !== '') {
             $value = $this->colorize($value, Table::COLOR_DARK_GRAY);

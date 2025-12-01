@@ -31,8 +31,7 @@ class ScanReportRenderer
 {
     public function __construct(
         private readonly TableFormatter $tableFormatter
-    ) {
-    }
+    ) {}
 
     /**
      * Render scan results as a table
@@ -57,7 +56,7 @@ class ScanReportRenderer
             $table = $this->tableFormatter->createStyledTable();
             $hidePackagePrefix = $this->tableFormatter->isSinglePackage(
                 array_map(
-                    fn (MissingTranslation $missing) => $missing->key->packageKey,
+                    fn(MissingTranslation $missing) => $missing->key->packageKey,
                     $missingTranslations
                 )
             );
@@ -75,7 +74,7 @@ class ScanReportRenderer
                 ]);
             }
 
-            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
+            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string) $table);
         }
 
         return PHP_EOL . implode(PHP_EOL, $output);
@@ -92,7 +91,7 @@ class ScanReportRenderer
         }
 
         $payload = [
-            'missing' => array_map(fn (MissingTranslation $missing) => [
+            'missing' => array_map(fn(MissingTranslation $missing) => [
                 'locale' => $missing->locale,
                 'package' => $missing->key->packageKey,
                 'source' => $missing->key->sourceName,
@@ -103,7 +102,7 @@ class ScanReportRenderer
                 'file' => PathResolver::relativePath($missing->reference->filePath),
                 'line' => $missing->reference->lineNumber,
             ], $scanResult->missingTranslations),
-            'warnings' => array_map(fn (PlaceholderMismatch $warning) => [
+            'warnings' => array_map(fn(PlaceholderMismatch $warning) => [
                 'locale' => $warning->locale,
                 'package' => $warning->key->packageKey,
                 'source' => $warning->key->sourceName,
@@ -164,7 +163,7 @@ class ScanReportRenderer
     {
         usort(
             $missingTranslations,
-            fn (MissingTranslation $a, MissingTranslation $b) => [$a->locale, $a->key->packageKey, $a->key->sourceName, $a->key->identifier]
+            fn(MissingTranslation $a, MissingTranslation $b) => [$a->locale, $a->key->packageKey, $a->key->sourceName, $a->key->identifier]
                 <=> [$b->locale, $b->key->packageKey, $b->key->sourceName, $b->key->identifier]
         );
     }
@@ -180,7 +179,7 @@ class ScanReportRenderer
                 'id' => $identifier,
                 'occurrences' => count($allReferences),
                 'files' => array_map(
-                    fn ($reference) => [
+                    fn($reference) => [
                         'file' => PathResolver::relativePath($reference->filePath),
                         'line' => $reference->lineNumber,
                     ],

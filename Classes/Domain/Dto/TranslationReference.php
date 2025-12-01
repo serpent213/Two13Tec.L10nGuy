@@ -40,8 +40,7 @@ final readonly class TranslationReference
         public array $placeholders = [],
         public bool $isPlural = false,
         public ?string $nodeTypeContext = null,
-    ) {
-    }
+    ) {}
 
     /**
      * @return list<string>
@@ -73,7 +72,7 @@ final readonly class TranslationReference
             return [];
         }
 
-        $placeholders = array_values(array_unique(array_filter($matches[1], static fn ($placeholder) => $placeholder !== '')));
+        $placeholders = array_values(array_unique(array_filter($matches[1], static fn($placeholder) => $placeholder !== '')));
         sort($placeholders);
 
         return $placeholders;

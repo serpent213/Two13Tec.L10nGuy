@@ -14,8 +14,8 @@ namespace Two13Tec\L10nGuy\Aspect;
  * source code.
  */
 
-use Neos\Flow\Aop\JoinPointInterface;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Aop\JoinPointInterface;
 use Neos\Flow\Cli\Command;
 use Neos\Flow\Cli\CommandArgumentDefinition;
 use Two13Tec\L10nGuy\Command\L10nCommandController;
@@ -50,7 +50,7 @@ final class LlmHelpOptionFilterAspect
 
         return array_values(array_filter(
             $argumentDefinitions,
-            static fn (CommandArgumentDefinition $definition): bool => stripos($definition->getName(), 'llm') !== 0
+            static fn(CommandArgumentDefinition $definition): bool => stripos($definition->getName(), 'llm') !== 0
         ));
     }
 }

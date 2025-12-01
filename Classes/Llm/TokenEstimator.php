@@ -47,7 +47,7 @@ final class TokenEstimator
 
         return new TokenEstimation(
             translationCount: array_sum(
-                array_map(static fn (array $call): int => $call['translations'], $calls)
+                array_map(static fn(array $call): int => $call['translations'], $calls)
             ),
             uniqueTranslationIds: $uniqueTranslationIds,
             apiCallCount: count($calls),
@@ -61,7 +61,7 @@ final class TokenEstimator
     {
         $length = mb_strlen($text);
 
-        return max(1, (int)ceil($length / 4));
+        return max(1, (int) ceil($length / 4));
     }
 
     public function estimateOutputTokens(int $translations): int

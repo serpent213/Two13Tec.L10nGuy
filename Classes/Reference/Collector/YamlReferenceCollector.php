@@ -135,7 +135,7 @@ final class YamlReferenceCollector implements ReferenceCollectorInterface
 
     private function deriveIdentifier(array $path): ?string
     {
-        $segments = array_filter($path, static fn (string $segment): bool => $segment !== '');
+        $segments = array_filter($path, static fn(string $segment): bool => $segment !== '');
         if ($segments === []) {
             return null;
         }

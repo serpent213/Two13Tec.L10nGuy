@@ -65,7 +65,7 @@ final class LlmProviderFactory
             throw new LlmConfigurationException('No LLM model configured.');
         }
 
-        return (string)$model;
+        return (string) $model;
     }
 
     private function createOllama(): Chain
@@ -78,7 +78,7 @@ final class LlmProviderFactory
 
     private function createOpenAI(): Chain
     {
-        $apiKey = $this->resolveEnvValue((string)($this->config['api_key'] ?? ''));
+        $apiKey = $this->resolveEnvValue((string) ($this->config['api_key'] ?? ''));
         if ($apiKey === '') {
             throw new LlmConfigurationException('OpenAI API key not configured.');
         }
@@ -94,7 +94,7 @@ final class LlmProviderFactory
 
     private function createAnthropic(): Chain
     {
-        $apiKey = $this->resolveEnvValue((string)($this->config['api_key'] ?? ''));
+        $apiKey = $this->resolveEnvValue((string) ($this->config['api_key'] ?? ''));
         if ($apiKey === '') {
             throw new LlmConfigurationException('Anthropic API key not configured.');
         }

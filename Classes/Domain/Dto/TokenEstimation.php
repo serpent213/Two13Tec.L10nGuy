@@ -29,8 +29,7 @@ final readonly class TokenEstimation
         public int $estimatedInputTokens,
         public int $estimatedOutputTokens,
         public int $peakTokensPerCall
-    ) {
-    }
+    ) {}
 
     public function exceedsLimit(int $maxTokensPerCall): bool
     {

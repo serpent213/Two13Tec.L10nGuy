@@ -107,12 +107,12 @@ final class ScanConfigurationFactory
      */
     public function createFromCliOptions(array $cliOptions = []): ScanConfiguration
     {
-        $update = (bool)($cliOptions['update'] ?? false);
-        $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
+        $update = (bool) ($cliOptions['update'] ?? false);
+        $ignorePlaceholderWarnings = (bool) ($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
         $newState = $this->normalizeState($this->defaultNewState);
         $newStateQualifier = $this->normalizeState($this->defaultNewStateQualifier);
-        $quiet = (bool)($cliOptions['quiet'] ?? false);
-        $quieter = (bool)($cliOptions['quieter'] ?? false);
+        $quiet = (bool) ($cliOptions['quiet'] ?? false);
+        $quieter = (bool) ($cliOptions['quieter'] ?? false);
 
         $paths = $cliOptions['paths'] ?? ($cliOptions['path'] ?? []);
         $paths = $this->normalizeList($paths);
@@ -169,12 +169,12 @@ final class ScanConfigurationFactory
         $locales = [];
         $defaultLocale = $this->flowI18nSettings['defaultLocale'] ?? null;
         if ($defaultLocale !== null && $defaultLocale !== '') {
-            $locales[] = (string)$defaultLocale;
+            $locales[] = (string) $defaultLocale;
         }
 
         $fallbackOrder = $this->flowI18nSettings['fallbackRule']['order'] ?? [];
-        foreach ((array)$fallbackOrder as $fallback) {
-            $locales[] = (string)$fallback;
+        foreach ((array) $fallbackOrder as $fallback) {
+            $locales[] = (string) $fallback;
         }
 
         return array_values(array_unique(array_filter($locales)));
@@ -210,10 +210,10 @@ final class ScanConfigurationFactory
         }
 
         if (!is_array($value)) {
-            return [(string)$value];
+            return [(string) $value];
         }
 
-        $filtered = array_filter(array_map(static fn ($item) => trim((string)$item), $value));
+        $filtered = array_filter(array_map(static fn($item) => trim((string) $item), $value));
 
         return array_values(array_unique($filtered));
     }
@@ -224,7 +224,7 @@ final class ScanConfigurationFactory
             return null;
         }
 
-        $state = trim((string)$value);
+        $state = trim((string) $value);
 
         return $state === '' ? null : $state;
     }
@@ -234,16 +234,16 @@ final class ScanConfigurationFactory
      */
     private function createLlmConfiguration(array $cliOptions): ?LlmConfiguration
     {
-        $enabled = (bool)($cliOptions['llm'] ?? false);
+        $enabled = (bool) ($cliOptions['llm'] ?? false);
         if (!$enabled) {
             return null;
         }
 
         $settings = $this->llmSettings;
-        $batchSize = (int)($settings['batchSize'] ?? LlmConfiguration::DEFAULT_BATCH_SIZE);
-        $maxCrossReferenceLocales = (int)($settings['maxCrossReferenceLocales'] ?? LlmConfiguration::DEFAULT_MAX_CROSS_REFERENCE_LOCALES);
-        $contextWindowLines = (int)($settings['contextWindowLines'] ?? LlmConfiguration::DEFAULT_CONTEXT_WINDOW_LINES);
-        $rateLimitDelay = (int)($settings['rateLimitDelay'] ?? LlmConfiguration::DEFAULT_RATE_LIMIT_DELAY);
+        $batchSize = (int) ($settings['batchSize'] ?? LlmConfiguration::DEFAULT_BATCH_SIZE);
+        $maxCrossReferenceLocales = (int) ($settings['maxCrossReferenceLocales'] ?? LlmConfiguration::DEFAULT_MAX_CROSS_REFERENCE_LOCALES);
+        $contextWindowLines = (int) ($settings['contextWindowLines'] ?? LlmConfiguration::DEFAULT_CONTEXT_WINDOW_LINES);
+        $rateLimitDelay = (int) ($settings['rateLimitDelay'] ?? LlmConfiguration::DEFAULT_RATE_LIMIT_DELAY);
 
         if ($batchSize < 1) {
             throw new LlmConfigurationException(sprintf('batchSize must be >= 1, got %d.', $batchSize), 1733044800);
@@ -262,20 +262,20 @@ final class ScanConfigurationFactory
             enabled: true,
             provider: $cliOptions['llmProvider'] ?? $settings['provider'] ?? null,
             model: $cliOptions['llmModel'] ?? $settings['model'] ?? null,
-            dryRun: (bool)($cliOptions['dryRun'] ?? false),
+            dryRun: (bool) ($cliOptions['dryRun'] ?? false),
             sourceLocale: $cliOptions['sourceLocale'] ?? $settings['sourceLocale'] ?? 'en',
             batchSize: $batchSize,
             maxCrossReferenceLocales: $maxCrossReferenceLocales,
             contextWindowLines: $contextWindowLines,
-            includeNodeTypeContext: (bool)($settings['includeNodeTypeContext'] ?? true),
-            includeExistingTranslations: (bool)($settings['includeExistingTranslations'] ?? true),
+            includeNodeTypeContext: (bool) ($settings['includeNodeTypeContext'] ?? true),
+            includeExistingTranslations: (bool) ($settings['includeExistingTranslations'] ?? true),
             newState: $this->normalizeState($settings['newState'] ?? null),
             newStateQualifier: $this->normalizeState($settings['newStateQualifier'] ?? null),
-            noteEnabled: (bool)($settings['noteEnabled'] ?? false),
-            maxTokensPerCall: (int)($settings['maxTokensPerCall'] ?? 4096),
+            noteEnabled: (bool) ($settings['noteEnabled'] ?? false),
+            maxTokensPerCall: (int) ($settings['maxTokensPerCall'] ?? 4096),
             rateLimitDelay: $rateLimitDelay,
-            systemPrompt: (string)($settings['systemPrompt'] ?? ''),
-            debug: (bool)($settings['debug'] ?? false),
+            systemPrompt: (string) ($settings['systemPrompt'] ?? ''),
+            debug: (bool) ($settings['debug'] ?? false),
         );
     }
 }

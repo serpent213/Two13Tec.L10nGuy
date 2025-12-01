@@ -33,8 +33,7 @@ class UnusedReportRenderer
     public function __construct(
         private readonly TableFormatter $tableFormatter,
         private readonly LoggerInterface $logger
-    ) {
-    }
+    ) {}
 
     /**
      * Log catalog diagnostics (errors and missing catalogs)
@@ -84,7 +83,7 @@ class UnusedReportRenderer
             $table = $this->tableFormatter->createStyledTable();
             $hidePackagePrefix = $this->tableFormatter->isSinglePackage(
                 array_map(
-                    fn (CatalogEntry $entry) => $entry->packageKey,
+                    fn(CatalogEntry $entry) => $entry->packageKey,
                     $entries
                 )
             );
@@ -101,7 +100,7 @@ class UnusedReportRenderer
                 ]);
             }
 
-            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string)$table);
+            $output[] = sprintf('Locale "%s":%s%s', $locale, PHP_EOL, (string) $table);
         }
 
         return PHP_EOL . implode(PHP_EOL, $output);
@@ -116,7 +115,7 @@ class UnusedReportRenderer
         CatalogIndex $catalogIndex
     ): string {
         $payload = [
-            'unused' => array_map(fn (CatalogEntry $entry) => [
+            'unused' => array_map(fn(CatalogEntry $entry) => [
                 'locale' => $entry->locale,
                 'package' => $entry->packageKey,
                 'source' => $entry->sourceName,
@@ -146,7 +145,7 @@ class UnusedReportRenderer
         ScanConfiguration $configuration,
         array $exitCodes
     ): int {
-        $exitCodeHelper = fn (string $key, int $fallback) => $exitCodes[$key] ?? $fallback;
+        $exitCodeHelper = fn(string $key, int $fallback) => $exitCodes[$key] ?? $fallback;
 
         if ($catalogIndex->errors() !== []) {
             return $exitCodeHelper('failure', 7);
@@ -166,7 +165,7 @@ class UnusedReportRenderer
     {
         usort(
             $entries,
-            fn (CatalogEntry $a, CatalogEntry $b) => [$a->locale, $a->packageKey, $a->sourceName, $a->identifier]
+            fn(CatalogEntry $a, CatalogEntry $b) => [$a->locale, $a->packageKey, $a->sourceName, $a->identifier]
                 <=> [$b->locale, $b->packageKey, $b->sourceName, $b->identifier]
         );
     }
@@ -182,7 +181,7 @@ class UnusedReportRenderer
                 'id' => $identifier,
                 'occurrences' => count($allReferences),
                 'files' => array_map(
-                    fn ($reference) => [
+                    fn($reference) => [
                         'file' => PathResolver::relativePath($reference->filePath),
                         'line' => $reference->lineNumber,
                     ],

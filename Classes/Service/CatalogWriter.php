@@ -138,7 +138,7 @@ final class CatalogWriter
                             $units[$baseId]['children'] = array_values(
                                 array_filter(
                                     $units[$baseId]['children'] ?? [],
-                                    static fn (array $child): bool => ($child['identifier'] ?? null) !== $entry->identifier
+                                    static fn(array $child): bool => ($child['identifier'] ?? null) !== $entry->identifier
                                 )
                             );
                             if ($units[$baseId]['forms'] === []) {
@@ -213,7 +213,7 @@ final class CatalogWriter
     ): bool {
         $resolvedMetadata = $this->resolveMetadata($metadata, $packageKey, $locale);
         $xml = $this->renderCatalog($resolvedMetadata, $units, $structure);
-        $currentContents = is_file($filePath) ? (string)file_get_contents($filePath) : '';
+        $currentContents = is_file($filePath) ? (string) file_get_contents($filePath) : '';
 
         if ($xml === $currentContents) {
             return true;
@@ -371,13 +371,13 @@ final class CatalogWriter
         ?LlmConfiguration $llmConfiguration
     ): ?string {
         if ($mutation->isLlmGenerated && $llmConfiguration !== null) {
-            $state = trim((string)$llmConfiguration->newState);
+            $state = trim((string) $llmConfiguration->newState);
             if ($state !== '') {
                 return $state;
             }
         }
 
-        $state = trim((string)$newState);
+        $state = trim((string) $newState);
 
         return $state === '' ? null : $state;
     }
@@ -388,13 +388,13 @@ final class CatalogWriter
         ?LlmConfiguration $llmConfiguration
     ): ?string {
         if ($mutation->isLlmGenerated && $llmConfiguration !== null) {
-            $qualifier = trim((string)$llmConfiguration->newStateQualifier);
+            $qualifier = trim((string) $llmConfiguration->newStateQualifier);
             if ($qualifier !== '') {
                 return $qualifier;
             }
         }
 
-        $qualifier = trim((string)$newStateQualifier);
+        $qualifier = trim((string) $newStateQualifier);
 
         return $qualifier === '' ? null : $qualifier;
     }
@@ -633,7 +633,7 @@ final class CatalogWriter
         $processOrderedIdentifiers = !$this->orderById;
         foreach ($bodyOrder as $element) {
             if (($element['type'] ?? '') === 'unknown' && isset($element['xml'])) {
-                foreach ($this->indentBlock((string)$element['xml'], 3) as $line) {
+                foreach ($this->indentBlock((string) $element['xml'], 3) as $line) {
                     $lines[] = $line;
                 }
                 continue;
@@ -644,7 +644,7 @@ final class CatalogWriter
             if (!isset($element['identifier'])) {
                 continue;
             }
-            $identifier = (string)$element['identifier'];
+            $identifier = (string) $element['identifier'];
             if (!isset($sortedUnits[$identifier])) {
                 continue;
             }
@@ -657,7 +657,7 @@ final class CatalogWriter
             $identifiers = array_keys($remainingUnits);
             natcasesort($identifiers);
             foreach ($identifiers as $identifier) {
-                $lines = array_merge($lines, $this->renderUnit((string)$identifier, $remainingUnits[$identifier]));
+                $lines = array_merge($lines, $this->renderUnit((string) $identifier, $remainingUnits[$identifier]));
             }
         } else {
             foreach ($remainingUnits as $identifier => $unit) {
@@ -687,7 +687,7 @@ final class CatalogWriter
 
         $ordered = [];
         foreach ($identifiers as $identifier) {
-            $ordered[(string)$identifier] = $units[$identifier];
+            $ordered[(string) $identifier] = $units[$identifier];
         }
 
         return $ordered;
@@ -708,7 +708,7 @@ final class CatalogWriter
 
         $ordered = [];
         foreach ($indices as $index) {
-            $ordered[(int)$index] = $forms[$index];
+            $ordered[(int) $index] = $forms[$index];
         }
 
         return $ordered;
@@ -721,7 +721,7 @@ final class CatalogWriter
     {
         $parts = [];
         foreach ($attributes as $name => $value) {
-            $parts[] = sprintf('%s="%s"', $name, $this->escape((string)$value));
+            $parts[] = sprintf('%s="%s"', $name, $this->escape((string) $value));
         }
 
         return implode(' ', $parts);
@@ -764,13 +764,13 @@ final class CatalogWriter
         $forms = $this->orderPluralForms($unit['forms'] ?? []);
         $formQueue = [];
         foreach ($forms as $index => $form) {
-            $formQueue[(int)$index] = $form;
+            $formQueue[(int) $index] = $form;
         }
 
         $renderedForms = [];
         foreach ($unit['children'] ?? [] as $child) {
             if (($child['type'] ?? '') === 'unknown' && isset($child['xml'])) {
-                foreach ($this->indentBlock((string)$child['xml'], 4) as $line) {
+                foreach ($this->indentBlock((string) $child['xml'], 4) as $line) {
                     $lines[] = $line;
                 }
                 continue;
@@ -778,7 +778,7 @@ final class CatalogWriter
             if (($child['type'] ?? '') !== 'form') {
                 continue;
             }
-            $index = isset($child['index']) ? (int)$child['index'] : null;
+            $index = isset($child['index']) ? (int) $child['index'] : null;
             if ($index === null || !isset($formQueue[$index])) {
                 continue;
             }
@@ -851,7 +851,7 @@ final class CatalogWriter
                 continue;
             }
             if ($type === 'unknown' && isset($child['xml'])) {
-                foreach ($this->indentBlock((string)$child['xml'], $indentLevel + 1) as $line) {
+                foreach ($this->indentBlock((string) $child['xml'], $indentLevel + 1) as $line) {
                     $lines[] = $line;
                 }
             }
@@ -863,7 +863,7 @@ final class CatalogWriter
                 $noteAttributes['from'] = $note['from'];
             }
             if (isset($note['priority'])) {
-                $noteAttributes['priority'] = (string)$note['priority'];
+                $noteAttributes['priority'] = (string) $note['priority'];
             }
 
             $lines[] = sprintf(
@@ -913,7 +913,7 @@ final class CatalogWriter
 
         return [
             'base' => $match[1],
-            'index' => (int)$match[2],
+            'index' => (int) $match[2],
         ];
     }
 

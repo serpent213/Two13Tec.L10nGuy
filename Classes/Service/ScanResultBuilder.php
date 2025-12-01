@@ -82,7 +82,7 @@ final class ScanResultBuilder
             return [];
         }
 
-        $placeholders = array_values(array_unique(array_filter($matches[1], static fn ($placeholder) => $placeholder !== '')));
+        $placeholders = array_values(array_unique(array_filter($matches[1], static fn($placeholder) => $placeholder !== '')));
         sort($placeholders);
 
         return $placeholders;
@@ -335,7 +335,7 @@ final class ScanResultBuilder
 
         return [
             'base' => $match[1],
-            'index' => (int)$match[2],
+            'index' => (int) $match[2],
         ];
     }
 

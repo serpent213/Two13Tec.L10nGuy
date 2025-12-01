@@ -48,13 +48,13 @@ final class CatalogMutation
 
     public string $identifier {
         get => $this->normalizedIdentifier;
-        set => $this->normalizedIdentifier = trim((string)$value);
+        set => $this->normalizedIdentifier = trim((string) $value);
     }
 
     public string $fallback {
         get => $this->fallbackValue;
         set {
-            $value = trim((string)$value);
+            $value = trim((string) $value);
             $this->fallbackValue = $value;
             if ($this->source === '') {
                 $this->source = $value;
@@ -67,27 +67,27 @@ final class CatalogMutation
 
     public string $source {
         get => $this->sourceValue;
-        set => $this->sourceValue = (string)$value;
+        set => $this->sourceValue = (string) $value;
     }
 
     public string $target {
         get => $this->targetValue;
-        set => $this->targetValue = (string)$value;
+        set => $this->targetValue = (string) $value;
     }
 
     public bool $isLlmGenerated {
         get => $this->llmGenerated;
-        set => $this->llmGenerated = (bool)$value;
+        set => $this->llmGenerated = (bool) $value;
     }
 
     public ?string $llmProvider {
         get => $this->llmProviderValue;
-        set => $this->llmProviderValue = $value === null ? null : trim((string)$value);
+        set => $this->llmProviderValue = $value === null ? null : trim((string) $value);
     }
 
     public ?string $llmModel {
         get => $this->llmModelValue;
-        set => $this->llmModelValue = $value === null ? null : trim((string)$value);
+        set => $this->llmModelValue = $value === null ? null : trim((string) $value);
     }
 
     public ?\DateTimeImmutable $llmGeneratedAt {

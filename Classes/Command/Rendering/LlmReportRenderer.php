@@ -29,8 +29,7 @@ class LlmReportRenderer
 {
     public function __construct(
         private readonly TableFormatter $tableFormatter
-    ) {
-    }
+    ) {}
 
     /**
      * Render LLM translations table showing source and target translations
@@ -40,7 +39,7 @@ class LlmReportRenderer
         /** @var list<CatalogMutation> $generated */
         $generated = array_values(array_filter(
             $mutations,
-            static fn (CatalogMutation $mutation): bool => $mutation->target !== ''
+            static fn(CatalogMutation $mutation): bool => $mutation->target !== ''
         ));
         if ($generated === []) {
             return null;
@@ -88,7 +87,7 @@ class LlmReportRenderer
         $translatedLocales = array_keys($translatedLocales);
         $translatedLocales = array_values(array_filter(
             $translatedLocales,
-            static fn (string $locale): bool => $locale !== $sourceLocale
+            static fn(string $locale): bool => $locale !== $sourceLocale
         ));
         sort($translatedLocales, SORT_NATURAL | SORT_FLAG_CASE);
 
@@ -130,7 +129,7 @@ class LlmReportRenderer
             $table->row($tableRow);
         }
 
-        return 'LLM translations:' . PHP_EOL . (string)$table;
+        return 'LLM translations:' . PHP_EOL . (string) $table;
     }
 
     /**

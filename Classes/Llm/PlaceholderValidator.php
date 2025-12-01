@@ -73,7 +73,7 @@ final class PlaceholderValidator
 
         $placeholders = array_filter(
             $matches[1] ?? [],
-            static fn ($placeholder): bool => $placeholder !== ''
+            static fn($placeholder): bool => $placeholder !== ''
         );
 
         $placeholders = array_values(array_unique($placeholders));

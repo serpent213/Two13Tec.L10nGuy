@@ -18,35 +18,31 @@ use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Psr\Log\LoggerInterface;
-use Two13Tec\L10nGuy\Cli\Table\Table;
+use Two13Tec\L10nGuy\Command\Rendering\LlmReportRenderer;
+use Two13Tec\L10nGuy\Command\Rendering\ScanReportRenderer;
+use Two13Tec\L10nGuy\Command\Rendering\TableFormatter;
+use Two13Tec\L10nGuy\Command\Rendering\UnusedReportRenderer;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogEntry;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogIndex;
 use Two13Tec\L10nGuy\Domain\Dto\CatalogMutation;
-use Two13Tec\L10nGuy\Domain\Dto\MissingTranslation;
-use Two13Tec\L10nGuy\Domain\Dto\PlaceholderMismatch;
+use Two13Tec\L10nGuy\Domain\Dto\LlmRunStatistics;
 use Two13Tec\L10nGuy\Domain\Dto\ReferenceIndex;
 use Two13Tec\L10nGuy\Domain\Dto\ScanConfiguration;
 use Two13Tec\L10nGuy\Domain\Dto\ScanResult;
-use Two13Tec\L10nGuy\Domain\Dto\TranslationReference;
-use Two13Tec\L10nGuy\Service\CatalogFileParser;
-use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
-use Two13Tec\L10nGuy\Service\CatalogWriter;
-use Two13Tec\L10nGuy\Service\FileDiscoveryService;
-use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
-use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
-use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
-use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 use Two13Tec\L10nGuy\Domain\Dto\TranslationKey;
 use Two13Tec\L10nGuy\Llm\Exception\LlmConfigurationException;
 use Two13Tec\L10nGuy\Llm\Exception\LlmUnavailableException;
 use Two13Tec\L10nGuy\Llm\LlmTranslationService;
-use Two13Tec\L10nGuy\Domain\Dto\LlmRunStatistics;
-use Two13Tec\L10nGuy\Utility\ProgressIndicator;
-use Two13Tec\L10nGuy\Command\Rendering\TableFormatter;
-use Two13Tec\L10nGuy\Command\Rendering\LlmReportRenderer;
-use Two13Tec\L10nGuy\Command\Rendering\ScanReportRenderer;
-use Two13Tec\L10nGuy\Command\Rendering\UnusedReportRenderer;
+use Two13Tec\L10nGuy\Service\CatalogFileParser;
+use Two13Tec\L10nGuy\Service\CatalogIndexBuilder;
+use Two13Tec\L10nGuy\Service\CatalogMutationFactory;
+use Two13Tec\L10nGuy\Service\CatalogWriter;
+use Two13Tec\L10nGuy\Service\FileDiscoveryService;
+use Two13Tec\L10nGuy\Service\ReferenceIndexBuilder;
+use Two13Tec\L10nGuy\Service\ScanConfigurationFactory;
+use Two13Tec\L10nGuy\Service\ScanResultBuilder;
 use Two13Tec\L10nGuy\Utility\PathResolver;
+use Two13Tec\L10nGuy\Utility\ProgressIndicator;
 
 /**
  * Flow CLI controller for `./flow l10n:*`.
@@ -389,7 +385,7 @@ class L10nCommandController extends CommandController
             'paths' => $path ? [$path] : [],
             'locales' => $locales,
         ]);
-        $checkMode = (bool)$check;
+        $checkMode = (bool) $check;
 
         $this->outputLine(
             'Prepared format run for %s (locales: %s, check-only: %s).',

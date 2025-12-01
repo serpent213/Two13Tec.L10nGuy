@@ -147,8 +147,8 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
 
-        $englishCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
-        $germanCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
+        $englishCatalog = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $germanCatalog = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
 
         self::assertStringContainsString('<source>Review me</source>', $englishCatalog);
         self::assertStringNotContainsString('<source state="needs-review">Review me</source>', $englishCatalog);
@@ -198,7 +198,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
 
-        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
+        $contents = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
 
         self::assertStringContainsString('<target state="needs-review" state-qualifier="mt-suggestion">Erzeugt</target>', $contents);
         self::assertStringContainsString('<note from="l10nguy">provider:openai model:gpt-4o-mini generated:2024-01-02T03:04:05+00:00</note>', $contents);
@@ -244,7 +244,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
 
-        $englishCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $englishCatalog = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
 
         self::assertStringContainsString('<source state="needs-review" state-qualifier="mt-suggestion">Group settings</source>', $englishCatalog);
         self::assertStringNotContainsString('<source state="needs-review">cards.llmSource</source>', $englishCatalog);
@@ -289,7 +289,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
 
-        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $contents = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
         self::assertStringContainsString('<group id="cards.plural" restype="x-gettext-plurals">', $contents);
         self::assertStringContainsString('<trans-unit id="cards.plural[0]" xml:space="preserve">', $contents);
         self::assertStringContainsString('<trans-unit id="cards.plural[1]" xml:space="preserve">', $contents);
@@ -323,7 +323,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'de', true);
 
-        $contents = (string)file_get_contents($filePath);
+        $contents = (string) file_get_contents($filePath);
         self::assertStringContainsString(PHP_EOL . '        <body>' . PHP_EOL, $contents);
         self::assertStringContainsString(PHP_EOL . '                <source>Example</source>' . PHP_EOL, $contents);
     }
@@ -357,7 +357,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'en', true);
 
-        $contents = (string)file_get_contents($filePath);
+        $contents = (string) file_get_contents($filePath);
         self::assertMatchesRegularExpression(
             '/<trans-unit id="z\\.last"[^>]*>.*<trans-unit id="a\\.first"/s',
             $contents
@@ -402,7 +402,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write($mutations, $catalogIndex, $configuration, $this->sandboxPath);
 
-        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $contents = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
         $alphaPos = strpos($contents, 'cards.alpha');
         $zetaPos = strpos($contents, 'cards.zeta');
         $placeholderPos = strpos($contents, 'cards.placeholderWarning');
@@ -449,7 +449,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->reformatCatalog($filePath, $metadata, $units, 'Two13Tec.Senegal', 'en', true, $structure);
 
-        $contents = (string)file_get_contents($filePath);
+        $contents = (string) file_get_contents($filePath);
         self::assertMatchesRegularExpression(
             '/<trans-unit id="a\\.first"[^>]*>.*<trans-unit id="z\\.last"/s',
             $contents
@@ -485,7 +485,7 @@ final class CatalogWriterTest extends TestCase
 
         $writer->write([$mutation], $catalogIndex, $configuration, $this->sandboxPath);
 
-        $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
+        $contents = (string) file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
         self::assertStringContainsString('<source state="needs-review">Grüße {会議時間}</source>', $contents);
     }
 
@@ -603,7 +603,7 @@ XML;
             ]
         );
 
-        $output = (string)file_get_contents($filePath);
+        $output = (string) file_get_contents($filePath);
         self::assertStringContainsString('custom-file="keep"', $output);
         self::assertStringContainsString('<header>', $output);
         self::assertStringContainsString('<meta keep="yes"/>', $output);
