@@ -172,7 +172,6 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
             'llmModel' => null,
             'dryRun' => null,
             'ignorePlaceholder' => null,
-            'setNeedsReview' => null,
             'quiet' => null,
             'quieter' => null,
         ], $overrides);
@@ -191,7 +190,6 @@ final class LocalizationScanCommandControllerTest extends SenegalFixtureTestCase
                 $arguments['llmModel'],
                 $arguments['dryRun'],
                 $arguments['ignorePlaceholder'],
-                $arguments['setNeedsReview'],
                 $arguments['quiet'],
                 $arguments['quieter']
             );

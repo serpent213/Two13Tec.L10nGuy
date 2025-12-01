@@ -108,7 +108,6 @@ class L10nCommandController extends CommandController
      * @param string|null $llmModel Override the configured LLM model
      * @param bool|null $dryRun Estimate LLM tokens without making API calls; inhibits catalog writes even when --update is set
      * @param bool|null $ignorePlaceholder Suppress placeholder mismatch warnings
-     * @param bool|null $setNeedsReview Flag new entries as needs-review (default: enabled)
      * @param bool|null $quiet Suppress table output
      * @param bool|null $quieter Suppress all stdout output (warnings/errors still surface on stderr)
      */
@@ -125,7 +124,6 @@ class L10nCommandController extends CommandController
         ?string $llmModel = null,
         ?bool $dryRun = null,
         ?bool $ignorePlaceholder = null,
-        ?bool $setNeedsReview = null,
         ?bool $quiet = null,
         ?bool $quieter = null
     ): void {
@@ -142,7 +140,6 @@ class L10nCommandController extends CommandController
             'llmModel' => $llmModel,
             'dryRun' => $dryRun,
             'ignorePlaceholder' => $ignorePlaceholder,
-            'setNeedsReview' => $setNeedsReview,
             'quiet' => $quiet,
             'quieter' => $quieter,
         ]);
@@ -189,7 +186,7 @@ class L10nCommandController extends CommandController
                     $runStatistics = null;
                     if (!$isJson && !$configuration->quieter && !$configuration->llm->dryRun) {
                         $modelLabel = $configuration->llm->model ?? 'model?';
-                        $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d API calls (%s)', $modelLabel));
+                        $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d LLM API calls (%s)', $modelLabel));
                         $runStatistics = new LlmRunStatistics();
                     }
 
@@ -215,7 +212,7 @@ class L10nCommandController extends CommandController
 
                     if ($runStatistics !== null && !$configuration->quieter) {
                         $this->outputLine(
-                            '%d API calls, %s tokens in, %s tokens out',
+                            '%d LLM API calls, %s tokens in, %s tokens out',
                             [
                                 $runStatistics->apiCalls,
                                 number_format($runStatistics->estimatedInputTokens, 0, '.', '.'),
@@ -352,7 +349,7 @@ class L10nCommandController extends CommandController
             $runStatistics = null;
             if (!$runConfiguration->quieter && !$runConfiguration->llm->dryRun) {
                 $modelLabel = $runConfiguration->llm->model ?? 'model?';
-                $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d API calls (%s)', $modelLabel));
+                $progressIndicator = new ProgressIndicator(sprintf('%%d/%%d LLM API calls (%s)', $modelLabel));
                 $runStatistics = new LlmRunStatistics();
             }
 
@@ -664,7 +661,8 @@ class L10nCommandController extends CommandController
             paths: $configuration->paths,
             format: $configuration->format,
             update: $configuration->update,
-            setNeedsReview: $configuration->setNeedsReview,
+            newState: $configuration->newState,
+            newStateQualifier: $configuration->newStateQualifier,
             ignorePlaceholderWarnings: $configuration->ignorePlaceholderWarnings,
             meta: $configuration->meta,
             quiet: $configuration->quiet,

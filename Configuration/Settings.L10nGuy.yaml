@@ -32,7 +32,9 @@ Two13Tec:
     defaultFormat: 'table'
     tabWidth: 2
     orderById: false
-    setNeedsReview: true
+
+    newState: 'needs-review'
+    newStateQualifier: null
 
     defaultLocales: []
     defaultPackages: []
@@ -83,8 +85,9 @@ Two13Tec:
       batchSize: 11
       maxCrossReferenceLocales: 6
 
-      markAsGenerated: true
-      defaultState: 'needs-review'
+      newState: 'needs-review'
+      newStateQualifier: 'mt-suggestion'
+      noteEnabled: false
 
       maxTokensPerCall: 32768
       rateLimitDelay: 100

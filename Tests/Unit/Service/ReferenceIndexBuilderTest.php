@@ -54,7 +54,9 @@ final class ReferenceIndexBuilderTest extends TestCase
             idPattern: null,
             paths: [$this->fixtureRoot()],
             format: 'table',
-            update: false
+            update: false,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $index = $builder->build($configuration);

@@ -65,7 +65,8 @@ final class CatalogWriter
             $parsed = CatalogFileParser::parse($filePath);
             $metadata = $this->resolveMetadata($parsed['meta'], $packageKey, $locale);
             $writeTarget = $this->shouldWriteTarget($metadata, $locale);
-            $setNeedsReview = $configuration->setNeedsReview;
+            $newState = $configuration->newState;
+            $newStateQualifier = $configuration->newStateQualifier;
             $llmConfiguration = $configuration->llm;
             $units = $parsed['units'];
             $structure = [
@@ -76,7 +77,7 @@ final class CatalogWriter
             $updated = false;
 
             foreach ($group as $mutation) {
-                $updated = $this->applyMutation($units, $mutation, $writeTarget, $setNeedsReview, $llmConfiguration) || $updated;
+                $updated = $this->applyMutation($units, $mutation, $writeTarget, $newState, $newStateQualifier, $llmConfiguration) || $updated;
             }
 
             if (!$updated) {
@@ -234,7 +235,8 @@ final class CatalogWriter
         array &$units,
         CatalogMutation $mutation,
         bool $writeTarget,
-        bool $setNeedsReview,
+        ?string $newState,
+        ?string $newStateQualifier,
         ?LlmConfiguration $llmConfiguration
     ): bool {
         $identifier = $mutation->identifier;
@@ -265,7 +267,8 @@ final class CatalogWriter
             $units[$baseId]['forms'][$formIndex] = $this->buildUnitFromMutation(
                 $mutation,
                 $writeTarget,
-                $setNeedsReview,
+                $newState,
+                $newStateQualifier,
                 $llmConfiguration,
                 $identifier
             );
@@ -290,7 +293,8 @@ final class CatalogWriter
             $units[$identifier]['forms'][0] = $this->buildUnitFromMutation(
                 $mutation,
                 $writeTarget,
-                $setNeedsReview,
+                $newState,
+                $newStateQualifier,
                 $llmConfiguration,
                 $formIdentifier
             );
@@ -316,7 +320,8 @@ final class CatalogWriter
             $this->buildUnitFromMutation(
                 $mutation,
                 $writeTarget,
-                $setNeedsReview,
+                $newState,
+                $newStateQualifier,
                 $llmConfiguration,
                 $identifier
             )
@@ -328,7 +333,8 @@ final class CatalogWriter
     private function buildUnitFromMutation(
         CatalogMutation $mutation,
         bool $writeTarget,
-        bool $setNeedsReview,
+        ?string $newState,
+        ?string $newStateQualifier,
         ?LlmConfiguration $llmConfiguration,
         string $identifier
     ): array {
@@ -339,11 +345,10 @@ final class CatalogWriter
             $source = $mutation->target;
         }
         $sourceAttributes = [];
-        $state = $this->resolveReviewState($mutation, $setNeedsReview, $llmConfiguration);
+        $state = $this->resolveReviewState($mutation, $newState, $llmConfiguration);
+        $stateQualifier = $this->resolveStateQualifier($mutation, $newStateQualifier, $llmConfiguration);
 
-        if ($state !== null && !$writeTarget) {
-            $sourceAttributes['state'] = $state;
-        }
+        $this->appendStateAttributes($sourceAttributes, $state, $stateQualifier, !$writeTarget);
 
         return [
             'id' => $identifier,
@@ -352,7 +357,7 @@ final class CatalogWriter
             'state' => $state !== null && $writeTarget ? $state : null,
             'attributes' => [],
             'sourceAttributes' => $sourceAttributes,
-            'targetAttributes' => [],
+            'targetAttributes' => $this->buildTargetAttributes($state, $stateQualifier, $writeTarget),
             'children' => [],
             'hasSource' => true,
             'hasTarget' => $hasTarget,
@@ -362,17 +367,63 @@ final class CatalogWriter
 
     private function resolveReviewState(
         CatalogMutation $mutation,
-        bool $setNeedsReview,
+        ?string $newState,
         ?LlmConfiguration $llmConfiguration
     ): ?string {
-        if ($mutation->isLlmGenerated && $llmConfiguration !== null && $llmConfiguration->markAsGenerated) {
-            $state = trim($llmConfiguration->defaultState);
+        if ($mutation->isLlmGenerated && $llmConfiguration !== null) {
+            $state = trim((string)$llmConfiguration->newState);
             if ($state !== '') {
                 return $state;
             }
         }
 
-        return $setNeedsReview ? CatalogEntry::STATE_NEEDS_REVIEW : null;
+        $state = trim((string)$newState);
+
+        return $state === '' ? null : $state;
+    }
+
+    private function resolveStateQualifier(
+        CatalogMutation $mutation,
+        ?string $newStateQualifier,
+        ?LlmConfiguration $llmConfiguration
+    ): ?string {
+        if ($mutation->isLlmGenerated && $llmConfiguration !== null) {
+            $qualifier = trim((string)$llmConfiguration->newStateQualifier);
+            if ($qualifier !== '') {
+                return $qualifier;
+            }
+        }
+
+        $qualifier = trim((string)$newStateQualifier);
+
+        return $qualifier === '' ? null : $qualifier;
+    }
+
+    private function appendStateAttributes(array &$attributes, ?string $state, ?string $stateQualifier, bool $enabled): void
+    {
+        if (!$enabled) {
+            return;
+        }
+        if ($state !== null) {
+            $attributes['state'] = $state;
+        }
+        if ($stateQualifier !== null) {
+            $attributes['state-qualifier'] = $stateQualifier;
+        }
+    }
+
+    private function buildTargetAttributes(?string $state, ?string $stateQualifier, bool $writeTarget): array
+    {
+        if (!$writeTarget) {
+            return [];
+        }
+
+        $targetAttributes = [];
+        if ($stateQualifier !== null) {
+            $targetAttributes['state-qualifier'] = $stateQualifier;
+        }
+
+        return $targetAttributes;
     }
 
     /**
@@ -380,17 +431,9 @@ final class CatalogWriter
      */
     private function buildLlmNotes(CatalogMutation $mutation, ?LlmConfiguration $llmConfiguration): array
     {
-        if (!$mutation->isLlmGenerated || $llmConfiguration === null || !$llmConfiguration->markAsGenerated) {
+        if (!$mutation->isLlmGenerated || $llmConfiguration === null || !$llmConfiguration->noteEnabled) {
             return [];
         }
-
-        $notes = [
-            [
-                'from' => 'l10nguy',
-                'priority' => 1,
-                'content' => 'llm-generated',
-            ],
-        ];
 
         $metaParts = [];
         if ($mutation->llmProvider !== null && $mutation->llmProvider !== '') {
@@ -403,14 +446,14 @@ final class CatalogWriter
             $metaParts[] = sprintf('generated:%s', $mutation->llmGeneratedAt->format(\DATE_ATOM));
         }
 
-        if ($metaParts !== []) {
-            $notes[] = [
-                'from' => 'l10nguy',
-                'content' => implode(' ', $metaParts),
-            ];
+        if ($metaParts === []) {
+            return [];
         }
 
-        return $notes;
+        return [[
+            'from' => 'l10nguy',
+            'content' => implode(' ', $metaParts),
+        ]];
     }
 
     /**

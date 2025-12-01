@@ -71,7 +71,9 @@ final class CatalogWriterTest extends TestCase
             idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
-            update: true
+            update: true,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();
@@ -121,7 +123,8 @@ final class CatalogWriterTest extends TestCase
             paths: [$this->sandboxPath],
             format: 'table',
             update: true,
-            setNeedsReview: false
+            newState: null,
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();
@@ -167,13 +170,15 @@ final class CatalogWriterTest extends TestCase
             paths: [$this->sandboxPath],
             format: 'table',
             update: true,
-            setNeedsReview: false,
+            newState: null,
+            newStateQualifier: null,
             llm: new LlmConfiguration(
                 enabled: true,
                 provider: 'openai',
                 model: 'gpt-4o-mini',
-                markAsGenerated: true,
-                defaultState: 'needs-review'
+                newState: 'needs-review',
+                newStateQualifier: 'mt-suggestion',
+                noteEnabled: true
             )
         );
 
@@ -195,12 +200,8 @@ final class CatalogWriterTest extends TestCase
 
         $contents = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/de/Presentation/Cards.xlf');
 
-        self::assertStringContainsString('<target state="needs-review">Erzeugt</target>', $contents);
-        self::assertStringContainsString('<note from="l10nguy" priority="1">llm-generated</note>', $contents);
-        self::assertStringContainsString(
-            '<note from="l10nguy">provider:openai model:gpt-4o-mini generated:2024-01-02T03:04:05+00:00</note>',
-            $contents
-        );
+        self::assertStringContainsString('<target state="needs-review" state-qualifier="mt-suggestion">Erzeugt</target>', $contents);
+        self::assertStringContainsString('<note from="l10nguy">provider:openai model:gpt-4o-mini generated:2024-01-02T03:04:05+00:00</note>', $contents);
     }
 
     /**
@@ -217,10 +218,14 @@ final class CatalogWriterTest extends TestCase
             paths: [$this->sandboxPath],
             format: 'table',
             update: true,
+            newState: null,
+            newStateQualifier: null,
             llm: new LlmConfiguration(
                 enabled: true,
                 provider: 'anthropic',
-                model: 'claude-3-5-sonnet'
+                model: 'claude-3-5-sonnet',
+                newState: 'needs-review',
+                newStateQualifier: 'mt-suggestion'
             )
         );
 
@@ -241,9 +246,9 @@ final class CatalogWriterTest extends TestCase
 
         $englishCatalog = (string)file_get_contents($this->sandboxPath . '/Resources/Private/Translations/en/Presentation/Cards.xlf');
 
-        self::assertStringContainsString('<source state="needs-review">Group settings</source>', $englishCatalog);
+        self::assertStringContainsString('<source state="needs-review" state-qualifier="mt-suggestion">Group settings</source>', $englishCatalog);
         self::assertStringNotContainsString('<source state="needs-review">cards.llmSource</source>', $englishCatalog);
-        self::assertStringContainsString('<note from="l10nguy" priority="1">llm-generated</note>', $englishCatalog);
+        self::assertStringNotContainsString('<note from="l10nguy"', $englishCatalog);
     }
 
     /**
@@ -259,7 +264,9 @@ final class CatalogWriterTest extends TestCase
             idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
-            update: true
+            update: true,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();
@@ -370,7 +377,9 @@ final class CatalogWriterTest extends TestCase
             idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
-            update: true
+            update: true,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();
@@ -460,7 +469,9 @@ final class CatalogWriterTest extends TestCase
             idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
-            update: true
+            update: true,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();
@@ -491,7 +502,9 @@ final class CatalogWriterTest extends TestCase
             idPattern: null,
             paths: [$this->sandboxPath],
             format: 'table',
-            update: true
+            update: true,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $catalogIndex = $this->createCatalogIndex();

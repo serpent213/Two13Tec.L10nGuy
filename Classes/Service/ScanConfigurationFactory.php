@@ -41,8 +41,11 @@ final class ScanConfigurationFactory
     #[Flow\InjectConfiguration(path: 'defaultPaths', package: 'Two13Tec.L10nGuy')]
     protected array $defaultPaths = [];
 
-    #[Flow\InjectConfiguration(path: 'setNeedsReview', package: 'Two13Tec.L10nGuy')]
-    protected bool $defaultSetNeedsReview = true;
+    #[Flow\InjectConfiguration(path: 'newState', package: 'Two13Tec.L10nGuy')]
+    protected ?string $defaultNewState = null;
+
+    #[Flow\InjectConfiguration(path: 'newStateQualifier', package: 'Two13Tec.L10nGuy')]
+    protected ?string $defaultNewStateQualifier = null;
 
     #[Flow\InjectConfiguration(path: 'llm', package: 'Two13Tec.L10nGuy')]
     protected array $llmSettings = [];
@@ -53,7 +56,8 @@ final class ScanConfigurationFactory
      * @param list<string>|null $defaultLocales
      * @param list<string>|null $defaultPackages
      * @param list<string>|null $defaultPaths
-     * @param bool|null $defaultSetNeedsReview
+     * @param string|null $defaultNewState
+     * @param string|null $defaultNewStateQualifier
      * @param array<string, mixed>|null $llmSettings
      */
     public function __construct(
@@ -62,7 +66,8 @@ final class ScanConfigurationFactory
         ?array $defaultLocales = null,
         ?array $defaultPackages = null,
         ?array $defaultPaths = null,
-        ?bool $defaultSetNeedsReview = null,
+        ?string $defaultNewState = null,
+        ?string $defaultNewStateQualifier = null,
         ?array $llmSettings = null
     ) {
         if ($flowI18nSettings !== null) {
@@ -86,8 +91,11 @@ final class ScanConfigurationFactory
         } else {
             $this->defaultPaths = $this->normalizeList($this->defaultPaths);
         }
-        if ($defaultSetNeedsReview !== null) {
-            $this->defaultSetNeedsReview = $defaultSetNeedsReview;
+        if ($defaultNewState !== null) {
+            $this->defaultNewState = $defaultNewState;
+        }
+        if ($defaultNewStateQualifier !== null) {
+            $this->defaultNewStateQualifier = $defaultNewStateQualifier;
         }
         if ($llmSettings !== null) {
             $this->llmSettings = $llmSettings;
@@ -101,7 +109,8 @@ final class ScanConfigurationFactory
     {
         $update = (bool)($cliOptions['update'] ?? false);
         $ignorePlaceholderWarnings = (bool)($cliOptions['ignorePlaceholderWarnings'] ?? $cliOptions['ignorePlaceholder'] ?? false);
-        $setNeedsReview = $this->resolveBooleanOption($cliOptions['setNeedsReview'] ?? null, $this->defaultSetNeedsReview);
+        $newState = $this->normalizeState($this->defaultNewState);
+        $newStateQualifier = $this->normalizeState($this->defaultNewStateQualifier);
         $quiet = (bool)($cliOptions['quiet'] ?? false);
         $quieter = (bool)($cliOptions['quieter'] ?? false);
 
@@ -129,7 +138,8 @@ final class ScanConfigurationFactory
             $paths,
             $this->resolveFormat($cliOptions['format'] ?? null),
             $update,
-            $setNeedsReview,
+            $newState,
+            $newStateQualifier,
             $ignorePlaceholderWarnings,
             [
                 'cli' => $cliOptions,
@@ -208,6 +218,17 @@ final class ScanConfigurationFactory
         return array_values(array_unique($filtered));
     }
 
+    private function normalizeState(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $state = trim((string)$value);
+
+        return $state === '' ? null : $state;
+    }
+
     /**
      * @param array<string, mixed> $cliOptions
      */
@@ -247,8 +268,9 @@ final class ScanConfigurationFactory
             contextWindowLines: $contextWindowLines,
             includeNodeTypeContext: (bool)($settings['includeNodeTypeContext'] ?? true),
             includeExistingTranslations: (bool)($settings['includeExistingTranslations'] ?? true),
-            markAsGenerated: (bool)($settings['markAsGenerated'] ?? true),
-            defaultState: (string)($settings['defaultState'] ?? 'needs-review'),
+            newState: $this->normalizeState($settings['newState'] ?? null),
+            newStateQualifier: $this->normalizeState($settings['newStateQualifier'] ?? null),
+            noteEnabled: (bool)($settings['noteEnabled'] ?? false),
             maxTokensPerCall: (int)($settings['maxTokensPerCall'] ?? 4096),
             rateLimitDelay: $rateLimitDelay,
             systemPrompt: (string)($settings['systemPrompt'] ?? ''),

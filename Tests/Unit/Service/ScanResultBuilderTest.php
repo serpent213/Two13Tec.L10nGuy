@@ -39,7 +39,9 @@ final class ScanResultBuilderTest extends TestCase
             idPattern: null,
             paths: [],
             format: 'table',
-            update: false
+            update: false,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $referenceIndex = new ReferenceIndex();
@@ -65,7 +67,9 @@ final class ScanResultBuilderTest extends TestCase
             idPattern: 'cards.*',
             paths: [],
             format: 'table',
-            update: false
+            update: false,
+            newState: 'needs-review',
+            newStateQualifier: null
         );
 
         $referenceIndex = new ReferenceIndex();

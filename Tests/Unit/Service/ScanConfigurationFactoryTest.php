@@ -161,35 +161,19 @@ final class ScanConfigurationFactoryTest extends TestCase
     /**
      * @test
      */
-    public function needsReviewDefaultsToConfigurationFlag(): void
+    public function newStateDefaultsToConfigurationFlag(): void
     {
         $factory = new ScanConfigurationFactory(
             flowI18nSettings: [],
             defaultFormat: 'table',
-            defaultSetNeedsReview: true
+            defaultNewState: 'needs-review',
+            defaultNewStateQualifier: null
         );
 
         $configuration = $factory->createFromCliOptions();
 
-        self::assertTrue($configuration->setNeedsReview);
-    }
-
-    /**
-     * @test
-     */
-    public function cliCanDisableNeedsReviewFlag(): void
-    {
-        $factory = new ScanConfigurationFactory(
-            flowI18nSettings: [],
-            defaultFormat: 'table',
-            defaultSetNeedsReview: true
-        );
-
-        $configuration = $factory->createFromCliOptions(['setNeedsReview' => false]);
-        self::assertFalse($configuration->setNeedsReview);
-
-        $stringConfiguration = $factory->createFromCliOptions(['setNeedsReview' => 'false']);
-        self::assertFalse($stringConfiguration->setNeedsReview);
+        self::assertSame('needs-review', $configuration->newState);
+        self::assertNull($configuration->newStateQualifier);
     }
 
     /**
@@ -244,8 +228,9 @@ final class ScanConfigurationFactoryTest extends TestCase
                 'contextWindowLines' => 7,
                 'includeNodeTypeContext' => false,
                 'includeExistingTranslations' => false,
-                'markAsGenerated' => false,
-                'defaultState' => 'new',
+                'newState' => 'new',
+                'newStateQualifier' => 'machine',
+                'noteEnabled' => true,
                 'maxTokensPerCall' => 2048,
                 'rateLimitDelay' => 50,
                 'systemPrompt' => 'demo prompt',
@@ -267,8 +252,9 @@ final class ScanConfigurationFactoryTest extends TestCase
         self::assertSame(7, $configuration->llm->contextWindowLines);
         self::assertFalse($configuration->llm->includeNodeTypeContext);
         self::assertFalse($configuration->llm->includeExistingTranslations);
-        self::assertFalse($configuration->llm->markAsGenerated);
-        self::assertSame('new', $configuration->llm->defaultState);
+        self::assertSame('new', $configuration->llm->newState);
+        self::assertSame('machine', $configuration->llm->newStateQualifier);
+        self::assertTrue($configuration->llm->noteEnabled);
         self::assertSame(2048, $configuration->llm->maxTokensPerCall);
         self::assertSame(50, $configuration->llm->rateLimitDelay);
         self::assertSame('demo prompt', $configuration->llm->systemPrompt);

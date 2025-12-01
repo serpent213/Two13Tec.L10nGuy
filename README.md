@@ -113,7 +113,7 @@ The helper ships sane defaults in [`Configuration/Settings.L10nGuy.yaml`](Config
   With that config `./flow l10n:scan` defaults to the Senegal package but you can still override it via CLI flags.
 - `Two13Tec.L10nGuy.tabWidth` controls how many spaces the catalog writer uses per indentation level (default `2`). Bump it if your team prefers wider XML indentation.
 - `Two13Tec.L10nGuy.orderById` (default `false`) makes the writer sort `<group>` and `<trans-unit>` elements by translation id throughout the document. By default it preserves the original catalog order when writing or reformatting.
-- `Two13Tec.L10nGuy.setNeedsReview` (default `true`) controls whether new entries are flagged with `state="needs-review"`. When enabled, the writer marks targets in translated catalogs and sources in source-language catalogs so reviewers can pick them up; disable it if you do not want automatic review flags.
+- `Two13Tec.L10nGuy.newState` / `Two13Tec.L10nGuy.newStateQualifier` define the `state` / `state-qualifier` attributes written on newly created entries (applies to source elements when writing the source locale, otherwise targets). Set them to `null` to skip the attributes entirely.
 
 Neos/Flow configuration conventions apply, so you can override these keys per context (`Settings.Development.yaml`, etc.) without touching the distributed defaults.
 

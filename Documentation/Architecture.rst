@@ -197,7 +197,9 @@ LLM-related configuration is encapsulated in ``LlmConfiguration`` and includes:
 * ``maxCrossReferenceLocales`` -- how many existing locale translations to
   include for context (default 6)
 * ``contextWindowLines`` -- lines of surrounding code to extract (default 5)
-* ``markAsGenerated`` -- whether to stamp ``<note>`` metadata on generated units
+* ``newState`` / ``newStateQualifier`` -- target ``state`` / ``state-qualifier``
+  to apply to LLM-generated translations
+* ``noteEnabled`` -- whether to emit a single ``<note>`` with provider/model/timestamp
 * ``systemPrompt`` -- override the default translator persona
 * ``debug`` -- enable detailed request/response logging
 

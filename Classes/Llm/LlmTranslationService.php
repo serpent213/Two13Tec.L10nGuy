@@ -283,7 +283,7 @@ final class LlmTranslationService
         string $targetLocale,
         LlmConfiguration $config
     ): void {
-        $generatedAt = $config->markAsGenerated ? new \DateTimeImmutable() : null;
+        $generatedAt = new \DateTimeImmutable();
 
         foreach ($batch as $entry) {
             $mutation = $entry['mutation'];
@@ -330,10 +330,6 @@ final class LlmTranslationService
             }
 
             $mutation->target = $translation;
-
-            if (!$config->markAsGenerated) {
-                continue;
-            }
 
             $mutation->isLlmGenerated = true;
             $mutation->llmProvider = $config->provider ?? null;
@@ -404,7 +400,7 @@ final class LlmTranslationService
      */
     private function applyTranslations(array $batch, array $parsed, LlmConfiguration $config): void
     {
-        $generatedAt = $config->markAsGenerated ? new \DateTimeImmutable() : null;
+        $generatedAt = new \DateTimeImmutable();
 
         foreach ($batch as $group) {
             $translationId = $this->translationId($group['missing']);
@@ -444,10 +440,6 @@ final class LlmTranslationService
                 }
 
                 $mutation->target = $translation;
-
-                if (!$config->markAsGenerated) {
-                    continue;
-                }
 
                 $mutation->isLlmGenerated = true;
                 $mutation->llmProvider = $config->provider ?? null;
