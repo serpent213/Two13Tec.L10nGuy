@@ -124,7 +124,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ env.NEOS_DIST_FOLDER }}
-        run: composer update --no-progress --no-interaction
+        run: |
+          # Optional package, install first to help dep resolution
+          composer require --dev --no-progress --no-interaction php-llm/llm-chain
+          composer update --no-progress --no-interaction
 
       - name: Configure Flow for SQLite
         working-directory: ${{ env.NEOS_DIST_FOLDER }}
